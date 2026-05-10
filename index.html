@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="es" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gastos y Cobros</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --bg:         #0e0b00;
+      --surface:    #1a1500;
+      --surface2:   #221c00;
+      --border:     rgba(201,154,20,.13);
+      --gold:       #c99a14;
+      --gold2:      #e8b83c;
+      --grad:       linear-gradient(135deg, #c99a14, #e8b83c);
+      --text:       #ffffff;
+      --text-muted: rgba(255,255,255,.42);
+      --paid:       #34d399;
+      --amber:      #e8b83c;
+      --red:        #f87171;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: var(--bg) !important;
+      background-image:
+        radial-gradient(circle at 15% 20%, rgba(201,154,20,.07) 0%, transparent 55%),
+        radial-gradient(circle at 85% 80%, rgba(232,184,60,.04) 0%, transparent 55%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Navbar ─────────────────────────────── */
+    .navbar-wrap {
+      background: #080600;
+      border-bottom: 1px solid rgba(201,154,20,.15);
+      padding: 14px 0;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .logo-text {
+      font-weight: 700; font-size: 1.1rem;
+      background: var(--grad);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .btn-contacts {
+      border: 1px solid rgba(201,154,20,.4);
+      color: var(--gold2);
+      background: rgba(201,154,20,.1);
+      border-radius: 8px; padding: 6px 14px;
+      font-size: .85rem; font-weight: 500;
+      cursor: pointer; transition: all .15s;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .btn-contacts:hover {
+      background: rgba(201,154,20,.18);
+      border-color: rgba(201,154,20,.6);
+      color: var(--gold2);
+    }
+
+    /* ── Cards ──────────────────────────────── */
+    .card {
+      background: var(--surface) !important;
+      border: 1px solid rgba(201,154,20,.12) !important;
+      border-radius: 16px !important;
+      box-shadow: 0 4px 24px rgba(0,0,0,.5) !important;
+    }
+    .card-footer {
+      background: transparent !important;
+      border-top: 1px solid rgba(201,154,20,.08) !important;
+    }
+
+    /* Expense card accent stripe */
+    .expense-card { position: relative; overflow: hidden; }
+    .expense-card::before {
+      content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+      background: var(--grad); border-radius: 16px 0 0 16px;
+    }
+    .expense-card.all-paid {
+      background: rgba(52,211,153,.05) !important;
+      border-color: rgba(52,211,153,.2) !important;
+    }
+    .expense-card.all-paid::before { background: var(--paid); }
+
+    /* ── Form inputs ─────────────────────────── */
+    .form-control, .form-select, .input-group-text {
+      background: var(--surface2) !important;
+      border-color: rgba(201,154,20,.16) !important;
+      color: var(--text) !important;
+    }
+    .form-control:focus {
+      background: var(--surface2) !important;
+      border-color: var(--gold) !important;
+      box-shadow: 0 0 0 .2rem rgba(201,154,20,.2) !important;
+      color: var(--text) !important;
+    }
+    .form-control::placeholder { color: var(--text-muted) !important; }
+    input[type="date"]::-webkit-calendar-picker-indicator,
+    input[type="month"]::-webkit-calendar-picker-indicator { filter: invert(.45); }
+    .form-label {
+      color: var(--text-muted); font-size: .72rem; font-weight: 600;
+      letter-spacing: .06em; text-transform: uppercase; margin-bottom: .4rem;
+    }
+    .form-text { color: var(--text-muted) !important; }
+
+    /* ── Buttons ─────────────────────────────── */
+    .btn-primary {
+      background: var(--grad) !important; border: none !important;
+      font-weight: 700; color: #0e0b00 !important;
+      box-shadow: 0 3px 14px rgba(201,154,20,.35);
+    }
+    .btn-primary:hover, .btn-primary:focus {
+      opacity: .9 !important; box-shadow: 0 4px 18px rgba(201,154,20,.45) !important;
+    }
+    .btn-outline-secondary {
+      border-color: rgba(255,255,255,.18) !important;
+      color: var(--text-muted) !important;
+    }
+    .btn-outline-secondary:hover {
+      background: rgba(255,255,255,.06) !important;
+      border-color: rgba(255,255,255,.32) !important;
+      color: var(--text) !important;
+    }
+    .btn-success {
+      background: linear-gradient(135deg, #34d399, #10b981) !important;
+      border: none !important; font-weight: 600; color: #022c22 !important;
+    }
+    .btn-danger {
+      background: rgba(248,113,113,.12) !important;
+      color: var(--red) !important; border: 1px solid rgba(248,113,113,.28) !important;
+    }
+    .btn-danger:hover { background: rgba(248,113,113,.22) !important; color: var(--red) !important; }
+    .btn-outline-danger {
+      border-color: rgba(248,113,113,.28) !important; color: var(--red) !important;
+    }
+    .btn-outline-danger:hover {
+      background: rgba(248,113,113,.1) !important;
+      border-color: rgba(248,113,113,.45) !important; color: var(--red) !important;
+    }
+
+    /* ── People selector ─────────────────────── */
+    .people-selector {
+      background: var(--surface2); border: 1px solid rgba(201,154,20,.16);
+      border-radius: 8px; padding: 8px 12px; cursor: pointer;
+      min-height: 42px; display: flex; align-items: center;
+      justify-content: space-between; color: var(--text-muted);
+      user-select: none; transition: border-color .15s;
+    }
+    .people-selector:hover { border-color: rgba(201,154,20,.4); }
+    .people-selector.has-selection { color: var(--text); border-color: rgba(201,154,20,.4); }
+
+    /* ── People panel ────────────────────────── */
+    #people-panel {
+      display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+      z-index: 1050; background: var(--surface2);
+      border: 1px solid rgba(201,154,20,.2); border-radius: 12px;
+      overflow: hidden; max-height: 260px; overflow-y: auto;
+      box-shadow: 0 8px 28px rgba(0,0,0,.6);
+    }
+    .person-option {
+      display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+      cursor: pointer; transition: background .1s; color: var(--text-muted); font-size: .9rem;
+    }
+    .person-option:hover { background: rgba(201,154,20,.1); color: var(--text); }
+    .person-option.selected { color: var(--gold2); background: rgba(201,154,20,.12); }
+    .person-option.otro { color: var(--gold2); border-top: 1px solid rgba(201,154,20,.1); }
+
+    /* ── Chips ───────────────────────────────── */
+    .chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(201,154,20,.18); border: 1px solid rgba(201,154,20,.35);
+      color: var(--gold2); border-radius: 99px;
+      padding: 4px 10px 4px 12px; font-size: .82rem; font-weight: 500;
+    }
+    .chip .chip-remove {
+      background: none; border: none; color: inherit; padding: 0;
+      line-height: 1; cursor: pointer; opacity: .6; font-size: 1rem;
+    }
+    .chip .chip-remove:hover { opacity: 1; }
+
+    /* ── Person buttons (in expense card) ─────── */
+    .person-btn {
+      border-radius: 99px; padding: 6px 14px; font-size: .85rem;
+      cursor: pointer; border: 1px solid rgba(255,255,255,.1);
+      background: rgba(255,255,255,.05); color: rgba(255,255,255,.5);
+      transition: all .15s; white-space: nowrap;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .person-btn:hover {
+      background: rgba(201,154,20,.14); border-color: rgba(201,154,20,.4); color: var(--gold2);
+    }
+    .person-btn.paid {
+      background: rgba(52,211,153,.13); border-color: rgba(52,211,153,.3); color: var(--paid);
+    }
+    .person-btn.paid:hover { background: rgba(52,211,153,.2); }
+
+    /* ── Expense card typography ─────────────── */
+    .expense-amount { font-size: 2.2rem; font-weight: 700; color: #fff; line-height: 1; }
+    .expense-name   { font-size: 1rem; font-weight: 600; color: var(--text); }
+    .expense-date   { font-size: .75rem; color: var(--text-muted); }
+
+    /* ── Summary pills ───────────────────────── */
+    .summary-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 4px 10px; border-radius: 99px;
+      font-size: .78rem; font-weight: 500; white-space: nowrap;
+    }
+    .summary-pill.my-share  { background: rgba(201,154,20,.15);  color: var(--gold2); }
+    .summary-pill.pending   { background: rgba(248,113,113,.12); color: #fca5a5; }
+    .summary-pill.collected { background: rgba(52,211,153,.12);  color: var(--paid); }
+
+    /* ── Section headers ─────────────────────── */
+    .section-header { display: flex; align-items: center; gap: 12px; }
+    .section-title {
+      font-size: .78rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+      color: var(--gold); white-space: nowrap;
+    }
+    .section-line {
+      flex: 1; height: 1px;
+      background: linear-gradient(90deg, rgba(201,154,20,.35), transparent);
+    }
+
+    /* ── Month pills ─────────────────────────── */
+    .month-pills-wrap { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .month-pill {
+      padding: 5px 14px; border-radius: 99px;
+      border: 1px solid rgba(201,154,20,.22); background: rgba(201,154,20,.07);
+      color: var(--text-muted); font-size: .78rem; font-weight: 500;
+      cursor: pointer; white-space: nowrap; transition: all .15s;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .month-pill:hover { border-color: rgba(201,154,20,.45); color: var(--text); }
+    .month-pill.active {
+      background: var(--grad); border-color: transparent; color: #0e0b00;
+      font-weight: 700; box-shadow: 0 2px 12px rgba(201,154,20,.35);
+    }
+    .month-pill-add {
+      padding: 5px 10px; border-radius: 99px;
+      border: 1px solid rgba(201,154,20,.22); background: rgba(201,154,20,.07);
+      color: var(--text-muted); font-size: .85rem; cursor: pointer;
+      transition: all .15s; font-family: 'Plus Jakarta Sans', sans-serif; line-height: 1.4;
+    }
+    .month-pill-add:hover { border-color: rgba(201,154,20,.45); color: var(--text); }
+
+    /* ── Divider ─────────────────────────────── */
+    .v-divider { width: 1px; background: rgba(201,154,20,.12); align-self: stretch; }
+
+    /* ── Edit panel ──────────────────────────── */
+    .edit-panel {
+      background: rgba(201,154,20,.05); border: 1px solid rgba(201,154,20,.12);
+      border-radius: 12px; padding: 14px;
+    }
+    .edit-dist-btn {
+      background: rgba(234,88,12,.18); border: 1px solid rgba(234,88,12,.35);
+      color: #fb923c; cursor: pointer; padding: 5px 9px; border-radius: 8px;
+      font-size: .85rem; transition: all .15s; font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .edit-dist-btn:hover { background: rgba(234,88,12,.3); border-color: rgba(234,88,12,.55); color: #fdba74; }
+    .delete-btn {
+      background: rgba(248,113,113,.12); border: 1px solid rgba(248,113,113,.3);
+      color: #f87171; cursor: pointer; padding: 5px 9px; border-radius: 8px;
+      font-size: .85rem; transition: all .15s; font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .delete-btn:hover { background: rgba(248,113,113,.22); border-color: rgba(248,113,113,.5); color: #fca5a5; }
+
+    /* ── Filter pending toggle ───────────────── */
+    .filter-pending-btn {
+      background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.12);
+      color: var(--text-muted); cursor: pointer; padding: 5px 14px; border-radius: 99px;
+      font-size: .8rem; font-weight: 500; transition: all .15s;
+      font-family: 'Plus Jakarta Sans', sans-serif; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .filter-pending-btn:hover { border-color: rgba(201,154,20,.4); color: var(--gold2); }
+    .filter-pending-btn.active {
+      background: rgba(201,154,20,.18); border-color: rgba(201,154,20,.5);
+      color: var(--gold2);
+    }
+
+    /* ── Modals ──────────────────────────────── */
+    .modal-content {
+      background: var(--surface) !important;
+      border: 1px solid rgba(201,154,20,.14) !important; border-radius: 16px !important;
+    }
+    .modal-header { border-bottom: 1px solid rgba(201,154,20,.1) !important; }
+    .modal-footer { border-top: 1px solid rgba(201,154,20,.1) !important; }
+
+    /* ── Contacts list ───────────────────────── */
+    .contact-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 0; border-bottom: 1px solid rgba(201,154,20,.09);
+    }
+    .contact-item:last-child { border-bottom: none; }
+
+    /* ── Toast ───────────────────────────────── */
+    #toast { border-radius: 12px !important; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+    .toast-success { background: linear-gradient(135deg, rgba(52,211,153,.9), rgba(16,185,129,.9)) !important; color: #022c22 !important; }
+    .toast-danger  { background: rgba(239,68,68,.9) !important; color: #fff !important; }
+    .toast-info    { background: rgba(201,154,20,.88) !important; color: #0e0b00 !important; }
+
+    /* ── Misc ────────────────────────────────── */
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+    .label-xs     { font-size: .7rem; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--text-muted); }
+    .preview-text { font-size: .82rem; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+
+<!-- ── NAVBAR ───────────────────────────────────────── -->
+<div class="navbar-wrap mb-4">
+  <div class="container d-flex align-items-center justify-content-between" style="max-width:900px">
+    <span class="logo-text"><i class="bi bi-cash-stack me-2"></i>Gastos y Cobros</span>
+    <button class="btn-contacts" onclick="openContactsModal()">
+      <i class="bi bi-people me-1"></i>Contactos
+    </button>
+  </div>
+</div>
+
+<div class="container pb-5" style="max-width:900px">
+
+  <!-- Toast -->
+  <div class="position-fixed bottom-0 end-0 p-3" style="z-index:9999">
+    <div id="toast" class="toast align-items-center border-0" role="alert">
+      <div class="d-flex">
+        <div class="toast-body fw-500" id="toast-msg"></div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── FORMULARIO ──────────────────────────────────── -->
+  <div class="card mb-5 p-4">
+    <div class="section-header mb-4">
+      <span class="section-title">Nuevo Gasto</span>
+      <div class="section-line"></div>
+    </div>
+
+    <div class="row g-2 align-items-end">
+      <!-- Monto -->
+      <div class="col-5 col-md-2">
+        <label class="form-label">Monto</label>
+        <div class="input-group">
+          <span class="input-group-text">$</span>
+          <input type="number" id="f-amount" class="form-control" placeholder="0" min="1" step="1" oninput="updatePreview()">
+        </div>
+      </div>
+
+      <!-- Nombre -->
+      <div class="col-7 col-md-3">
+        <label class="form-label">Nombre</label>
+        <input type="text" id="f-name" class="form-control" placeholder="Cena, arriendo...">
+      </div>
+
+      <!-- Selector de personas -->
+      <div class="col-12 col-md-4">
+        <label class="form-label">Personas</label>
+        <div class="position-relative" id="people-wrapper">
+          <div class="people-selector" id="people-selector-btn" onclick="togglePeoplePanel()">
+            <span id="people-selector-label">Seleccionar personas...</span>
+            <i class="bi bi-chevron-down" style="font-size:.75rem;opacity:.4"></i>
+          </div>
+          <div id="people-panel"></div>
+        </div>
+      </div>
+
+      <!-- Fecha -->
+      <div class="col-7 col-md-2">
+        <label class="form-label">Fecha</label>
+        <input type="date" id="f-date" class="form-control">
+      </div>
+
+      <!-- Botón agregar -->
+      <div class="col-5 col-md-1">
+        <button class="btn btn-primary w-100" onclick="createExpense()">
+          <i class="bi bi-plus-lg"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Chips personas seleccionadas -->
+    <div id="f-chips" class="mt-3 d-flex flex-wrap gap-2"></div>
+
+    <!-- Preview -->
+    <div id="f-preview" class="mt-2 preview-text"></div>
+  </div>
+
+  <!-- ── REGISTRO ─────────────────────────────────────── -->
+  <div id="registro-titulo" class="section-header mb-3">
+    <span class="section-title">Registro de Gastos</span>
+    <div class="section-line"></div>
+  </div>
+  <div id="month-filter-wrap" class="mb-4"></div>
+  <div id="expense-list"></div>
+</div>
+
+
+<!-- ══ MODAL: Agregar mes ═══════════════════════════════ -->
+<div class="modal fade" id="modal-add-month" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-calendar-plus me-2"></i>Agregar mes</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label">Mes y año</label>
+        <input type="month" id="add-month-input" class="form-control">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveNewMonth()">Agregar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Confirmar eliminación ════════════════════ -->
+<div class="modal fade" id="modal-confirm-delete" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <div class="modal-body text-center py-4">
+        <i class="bi bi-trash3 mb-3 d-block" style="font-size:2rem;color:var(--red)"></i>
+        <p class="mb-1 fw-semibold">¿Eliminar?</p>
+        <p id="confirm-delete-name" class="mb-0" style="color:var(--text-muted);font-size:.9rem"></p>
+      </div>
+      <div class="modal-footer justify-content-center border-0 pt-0 pb-4 gap-2">
+        <button class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-danger px-4" id="confirm-delete-btn">Eliminar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Gestionar contactos ══════════════════════ -->
+<div class="modal fade" id="modal-contacts" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-people me-2"></i>Contactos registrados</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="d-flex gap-2 mb-4">
+          <input type="text" id="contacts-new-input" class="form-control" placeholder="Nombre del nuevo contacto..."
+                 onkeydown="if(event.key==='Enter') addContactFromModal()">
+          <button class="btn btn-primary text-nowrap" onclick="addContactFromModal()">
+            <i class="bi bi-plus-lg"></i>
+          </button>
+        </div>
+        <div id="contacts-modal-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Agregar nueva persona (desde "Otro...") ══ -->
+<div class="modal fade" id="modal-add-person" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-person-plus me-2"></i>Agregar persona</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label">Nombre</label>
+        <input type="text" id="add-person-input" class="form-control" placeholder="Ej: Pedro Soto"
+               onkeydown="if(event.key==='Enter') saveNewPerson()">
+        <div class="form-text mt-2">
+          Se guardará en los contactos y se añadirá al gasto actual.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveNewPerson()">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+
+// ── Persistencia ───────────────────────────────────────
+function loadExpenses()  { return JSON.parse(localStorage.getItem('gastos') || '[]'); }
+function saveExpenses(d) { localStorage.setItem('gastos', JSON.stringify(d)); }
+function loadContacts()  { return JSON.parse(localStorage.getItem('contactos') || '[]'); }
+function saveContacts(c) { localStorage.setItem('contactos', JSON.stringify(c)); }
+
+function addContactToList(name) {
+  name = name.trim();
+  if (!name) return false;
+  const list = loadContacts();
+  if (list.some(c => c.toLowerCase() === name.toLowerCase())) return false;
+  list.push(name);
+  list.sort((a, b) => a.localeCompare(b, 'es'));
+  saveContacts(list);
+  return true;
+}
+
+// ── Estado del formulario ──────────────────────────────
+let selectedPeople = [];
+let panelOpen = false;
+let filterPending = false;
+
+// ── Meses ──────────────────────────────────────────────
+const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+let selectedMonth = todayISO().slice(0, 7);
+
+function loadMonths()        { return JSON.parse(localStorage.getItem('meses') || '[]'); }
+function saveMonths(m)       { localStorage.setItem('meses', JSON.stringify(m)); }
+function loadSelectedMonth() { return localStorage.getItem('mes-activo') || null; }
+function saveSelectedMonth(m){ localStorage.setItem('mes-activo', m); }
+
+function selectMonth(m) {
+  selectedMonth = m;
+  saveSelectedMonth(m);
+  renderList();
+}
+
+function toggleFilterPending() {
+  filterPending = !filterPending;
+  renderList();
+}
+
+function fmtMonth(yyyymm) {
+  const [y, m] = yyyymm.split('-');
+  return `${MONTHS_ES[parseInt(m) - 1]} ${y}`;
+}
+
+function getExpenseMonth(e) {
+  if (e.month) return e.month;
+  if (e.createdAt) return e.createdAt.slice(0, 7);
+  return new Date(parseInt(e.id)).toISOString().slice(0, 7);
+}
+
+function initMonths() {
+  const months = loadMonths();
+  const toAdd  = new Set([
+    todayISO().slice(0, 7),
+    ...loadExpenses().map(e => getExpenseMonth(e))
+  ]);
+  let changed = false;
+  toAdd.forEach(m => { if (!months.includes(m)) { months.push(m); changed = true; } });
+  if (changed) { months.sort(); saveMonths(months); }
+  const saved = loadSelectedMonth();
+  selectedMonth = (saved && months.includes(saved))
+    ? saved
+    : months[months.length - 1] || todayISO().slice(0, 7);
+}
+
+function openAddMonthModal() {
+  document.getElementById('add-month-input').value = '';
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-add-month')).show();
+}
+
+function saveNewMonth() {
+  const val = document.getElementById('add-month-input').value;
+  if (!val) return;
+  const months = loadMonths();
+  if (!months.includes(val)) {
+    months.push(val);
+    months.sort();
+    saveMonths(months);
+  }
+  selectedMonth = val;
+  saveSelectedMonth(val);
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-add-month')).hide();
+  renderList();
+}
+
+// ── Estado edición de distribución ────────────────────
+let editingExpenseId = null;
+let editingAmounts   = {};
+let lockedKeys       = new Set();
+
+// ── Utilidades fecha ───────────────────────────────────
+function todayISO() { return new Date().toISOString().slice(0, 10); }
+function fmtDate(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+// ── Panel de personas ──────────────────────────────────
+function togglePeoplePanel() {
+  panelOpen ? closePeoplePanel() : openPeoplePanel();
+}
+
+function openPeoplePanel() {
+  panelOpen = true;
+  renderPeoplePanel();
+  document.getElementById('people-panel').style.display = 'block';
+}
+
+function closePeoplePanel() {
+  panelOpen = false;
+  document.getElementById('people-panel').style.display = 'none';
+}
+
+function renderPeoplePanel() {
+  const contacts = loadContacts();
+  const panel = document.getElementById('people-panel');
+
+  const items = contacts.map(c => {
+    const sel = selectedPeople.some(p => p.toLowerCase() === c.toLowerCase());
+    return `
+      <div class="person-option ${sel ? 'selected' : ''}" data-name="${esc(c)}" onclick="togglePersonInPanel(this.dataset.name)">
+        <i class="bi ${sel ? 'bi-check-circle-fill' : 'bi-circle'}" style="font-size:.9rem;pointer-events:none"></i>
+        ${esc(c)}
+      </div>`;
+  }).join('');
+
+  const emptyNote = !contacts.length
+    ? `<div class="person-option" style="cursor:default;font-size:.82rem">
+         Sin contactos — usa "Otro" para agregar
+       </div>`
+    : '';
+
+  panel.innerHTML = items + emptyNote + `
+    <div class="person-option otro" onclick="openAddPersonModal()">
+      <i class="bi bi-plus-circle" style="font-size:.9rem"></i> Otro...
+    </div>`;
+}
+
+function togglePersonInPanel(name) {
+  const idx = selectedPeople.findIndex(p => p.toLowerCase() === name.toLowerCase());
+  if (idx >= 0) {
+    selectedPeople.splice(idx, 1);
+  } else {
+    selectedPeople.push(name);
+  }
+  renderChips();
+  updatePreview();
+  renderPeoplePanel();
+}
+
+// Cerrar panel al hacer clic fuera
+document.addEventListener('mousedown', e => {
+  if (!e.target.closest('#people-wrapper')) closePeoplePanel();
+});
+
+// ── Chips ──────────────────────────────────────────────
+function renderChips() {
+  const btn   = document.getElementById('people-selector-btn');
+  const label = document.getElementById('people-selector-label');
+
+  if (selectedPeople.length) {
+    btn.classList.add('has-selection');
+    label.textContent = selectedPeople.length === 1
+      ? '1 persona seleccionada'
+      : `${selectedPeople.length} personas seleccionadas`;
+  } else {
+    btn.classList.remove('has-selection');
+    label.textContent = 'Seleccionar personas...';
+  }
+
+  document.getElementById('f-chips').innerHTML = selectedPeople.map((p, i) => `
+    <span class="chip">
+      ${esc(p)}
+      <button class="chip-remove" onclick="removeChip(${i})" title="Quitar">×</button>
+    </span>`).join('');
+}
+
+function removeChip(idx) {
+  selectedPeople.splice(idx, 1);
+  renderChips();
+  updatePreview();
+  if (panelOpen) renderPeoplePanel();
+}
+
+// ── Preview del formulario ─────────────────────────────
+function updatePreview() {
+  const amount = parseFloat(document.getElementById('f-amount').value);
+  const n  = selectedPeople.length;
+  const el = document.getElementById('f-preview');
+  if (amount > 0 && n > 0) {
+    const share = Math.round(amount / (n + 1));
+    el.textContent = `${n} persona${n > 1 ? 's' : ''} + tú = $${fmt(share)} cada uno`;
+  } else {
+    el.textContent = '';
+  }
+}
+
+// ── Crear gasto ────────────────────────────────────────
+function createExpense() {
+  const amount = parseFloat(document.getElementById('f-amount').value);
+  const name   = document.getElementById('f-name').value.trim();
+  const date   = document.getElementById('f-date').value || todayISO();
+
+  if (!name)                  return toast('Ingresa el nombre del gasto.', 'danger');
+  if (!amount || amount <= 0) return toast('El monto debe ser mayor a 0.', 'danger');
+
+  let myShare, charges;
+  if (!selectedPeople.length) {
+    myShare = amount;
+    charges = [];
+  } else {
+    const n  = selectedPeople.length + 1;
+    const base = Math.round(amount / n * 100) / 100;
+    const rem  = Math.round((amount - base * n) * 100) / 100;
+    myShare  = base;
+    charges  = selectedPeople.map((p, i) => ({
+      id: Date.now() + i,
+      person: p,
+      amount: i === 0 ? Math.round((base + rem) * 100) / 100 : base,
+      paid: false
+    }));
+  }
+
+  const expenses = loadExpenses();
+  expenses.unshift({ id: String(Date.now()), name, total: amount, date, myShare, charges, month: selectedMonth });
+  saveExpenses(expenses);
+
+  selectedPeople = [];
+  document.getElementById('f-amount').value = '';
+  document.getElementById('f-name').value   = '';
+  document.getElementById('f-date').value   = todayISO();
+  renderChips();
+  updatePreview();
+  closePeoplePanel();
+
+  renderList();
+  toast(`Gasto "${name}" creado.`, 'success');
+  setTimeout(() => document.getElementById('registro-titulo').scrollIntoView({ behavior: 'smooth' }), 100);
+}
+
+// ── Lista de gastos ────────────────────────────────────
+function renderList() {
+  const allExpenses = loadExpenses();
+  const el = document.getElementById('expense-list');
+
+  const months = loadMonths();
+  if (!months.includes(selectedMonth)) {
+    selectedMonth = months[months.length - 1] || todayISO().slice(0, 7);
+    saveSelectedMonth(selectedMonth);
+  }
+
+  // Pills de mes
+  const wrap = document.getElementById('month-filter-wrap');
+  if (wrap) {
+    wrap.innerHTML = `
+      <div class="month-pills-wrap">
+        ${[...months].reverse().map(m => `
+          <button class="month-pill${m === selectedMonth ? ' active' : ''}" onclick="selectMonth('${m}')">
+            ${fmtMonth(m)}
+          </button>`).join('')}
+        <button class="month-pill-add" onclick="openAddMonthModal()" title="Agregar mes">
+          <i class="bi bi-plus-lg"></i>
+        </button>
+      </div>
+      <div style="margin-top:.6rem">
+        <button class="filter-pending-btn${filterPending ? ' active' : ''}" onclick="toggleFilterPending()">
+          <i class="bi ${filterPending ? 'bi-funnel-fill' : 'bi-funnel'}"></i>
+          Solo pendientes
+        </button>
+      </div>`;
+  }
+
+  const expenses = allExpenses.filter(e => {
+    if (getExpenseMonth(e) !== selectedMonth) return false;
+    if (filterPending) {
+      const ap = e.charges.length === 0 || e.charges.every(c => c.paid);
+      if (ap) return false;
+    }
+    return true;
+  });
+
+  if (!expenses.length) {
+    const msg = filterPending
+      ? `Sin gastos pendientes en ${fmtMonth(selectedMonth)}`
+      : `Sin gastos en ${fmtMonth(selectedMonth)}`;
+    el.innerHTML = `
+      <div class="text-center py-5" style="color:var(--text-muted)">
+        <i class="bi bi-receipt" style="font-size:3rem;opacity:.3"></i>
+        <p class="mt-3 mb-0 small">${msg}</p>
+      </div>`;
+    return;
+  }
+
+  el.innerHTML = expenses.map(e => {
+    const totalPaid = e.charges.filter(c => c.paid).reduce((s, c) => s + c.amount, 0);
+    const pendiente = e.charges.reduce((s, c) => s + c.amount, 0) - totalPaid;
+    const myShare   = e.myShare ?? Math.round(e.total / (e.charges.length + 1) * 100) / 100;
+    const allPaid   = e.charges.length === 0 || e.charges.every(c => c.paid);
+    const isEditing = editingExpenseId === e.id;
+
+    // ── Modo edición ────────────────────────────────────
+    const allKeys  = ['tu', ...e.charges.map(c => String(c.id))];
+    const sumEdit  = isEditing ? allKeys.reduce((s, k) => s + (editingAmounts[k] || 0), 0) : 0;
+    const sumOk    = Math.abs(sumEdit - e.total) < 0.05;
+    const editRows = isEditing ? [
+        { key: 'tu', label: 'Tú', amount: editingAmounts['tu'] ?? myShare },
+        ...e.charges.map(c => ({ key: String(c.id), label: c.person, amount: editingAmounts[String(c.id)] ?? c.amount }))
+      ].map(row => {
+        const locked = lockedKeys.has(row.key);
+        return `
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <span style="min-width:90px;color:var(--text-muted);font-size:.85rem;flex-shrink:0">
+            ${row.key === 'tu' ? '<i class="bi bi-person-fill me-1" style="opacity:.35"></i>' : ''}${esc(row.label)}
+          </span>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text" style="font-size:.8rem">$</span>
+            <input id="ei-${row.key}" type="number" class="form-control form-control-sm"
+                   value="${row.amount}" min="0" step="1"
+                   data-key="${row.key}"
+                   oninput="updateEditAmount(this.dataset.key, this.value)">
+          </div>
+          <button id="lock-${row.key}" onclick="toggleLock('${row.key}')" title="${locked ? 'Desbloquear' : 'Fijar valor'}"
+                  style="background:none;border:none;cursor:pointer;padding:4px;flex-shrink:0;color:${locked ? '#e8b83c' : 'rgba(255,255,255,.18)'}">
+            <i class="bi ${locked ? 'bi-lock-fill' : 'bi-unlock'}" style="font-size:.85rem;pointer-events:none"></i>
+          </button>
+        </div>`;
+      }).join('') : '';
+
+    // ── Fila inferior según modo ─────────────────────────
+    const bottomRow = isEditing ? `
+      <div class="edit-panel mt-3">
+        ${editRows}
+        <div id="edit-total-${e.id}" style="font-size:.78rem;text-align:right;margin-top:6px;color:${sumOk ? '#34d399' : '#f87171'}">
+          $${fmt(Math.round(sumEdit * 100) / 100)} / $${fmt(e.total)} ${sumOk ? '✓' : '⚠ no coincide'}
+        </div>
+        <div class="d-flex justify-content-end gap-2 mt-3">
+          <button class="btn btn-sm btn-success py-0 px-2" style="font-size:.78rem" onclick="saveEditExpense('${e.id}')">
+            <i class="bi bi-check-lg me-1"></i>Guardar
+          </button>
+          <button class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:.78rem" onclick="cancelEditExpense()">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+      </div>` : e.charges.length ? `
+      <div class="d-flex flex-wrap gap-2 mt-3">
+        ${e.charges.map(c => `
+          <button class="person-btn ${c.paid ? 'paid' : ''}" onclick="toggleCharge('${e.id}',${c.id})">
+            <i class="bi ${c.paid ? 'bi-check-circle-fill' : 'bi-circle'}" style="font-size:.8rem"></i>
+            ${esc(c.person)}
+            <span style="opacity:.65">$${fmt(c.amount)}</span>
+          </button>`).join('')}
+      </div>` : '';
+
+    return `
+      <div class="card expense-card mb-3${allPaid ? ' all-paid' : ''}">
+        <div class="card-body p-4">
+
+          <!-- Fila superior: datos del gasto -->
+          <div class="d-flex flex-wrap align-items-center gap-3">
+            <div class="expense-amount">$${fmt(e.total)}</div>
+            <div style="flex:1;min-width:0">
+              <div class="expense-name">${esc(e.name)}</div>
+              <div class="expense-date">${fmtDate(e.date)}</div>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+              <span class="summary-pill my-share"><i class="bi bi-person-fill"></i> Tu parte $${fmt(myShare)}</span>
+              <span class="summary-pill pending"><i class="bi bi-clock"></i> $${fmt(pendiente)}</span>
+              <span class="summary-pill collected"><i class="bi bi-check-circle"></i> $${fmt(totalPaid)}</span>
+            </div>
+          </div>
+
+          <!-- Fila inferior: personas o edición -->
+          ${bottomRow}
+
+        </div>
+        <div class="card-footer d-flex justify-content-end gap-2" style="padding:.6rem 1.5rem">
+          ${!isEditing ? `<button class="edit-dist-btn" onclick="startEditExpense('${e.id}')" title="Editar distribución"><i class="bi bi-pencil"></i></button>` : ''}
+          <button class="delete-btn" onclick="deleteExpense('${e.id}')" title="Eliminar"><i class="bi bi-trash"></i></button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── Edición de distribución en tarjeta ─────────────────
+function startEditExpense(id) {
+  const expense = loadExpenses().find(e => e.id === id);
+  editingExpenseId = id;
+  editingAmounts   = { tu: expense.myShare ?? 0 };
+  lockedKeys       = new Set();
+  expense.charges.forEach(c => { editingAmounts[String(c.id)] = c.amount; });
+  renderList();
+}
+
+function cancelEditExpense() {
+  editingExpenseId = null;
+  editingAmounts   = {};
+  lockedKeys       = new Set();
+  renderList();
+}
+
+function updateEditAmount(key, rawVal) {
+  const expense = loadExpenses().find(e => e.id === editingExpenseId);
+  const total   = expense.total;
+  const val     = Math.max(0, Math.min(parseFloat(rawVal) || 0, total));
+  editingAmounts[key] = val;
+
+  const allKeys  = ['tu', ...expense.charges.map(c => String(c.id))];
+  const fixedSet = new Set([key, ...lockedKeys]);
+  const toUpdate = allKeys.filter(k => !fixedSet.has(k));
+  const fixedSum = allKeys.filter(k => fixedSet.has(k))
+                          .reduce((s, k) => s + (editingAmounts[k] || 0), 0);
+  const remaining = Math.max(0, total - fixedSum);
+
+  if (toUpdate.length > 0) {
+    const base = Math.round(remaining / toUpdate.length * 100) / 100;
+    const rem  = Math.round((remaining - base * toUpdate.length) * 100) / 100;
+    toUpdate.forEach((k, i) => {
+      editingAmounts[k] = i === 0 ? Math.round((base + rem) * 100) / 100 : base;
+      const inp = document.getElementById(`ei-${k}`);
+      if (inp) inp.value = editingAmounts[k];
+    });
+  }
+
+  const sumEdit = allKeys.reduce((s, k) => s + (editingAmounts[k] || 0), 0);
+  const sumOk   = Math.abs(sumEdit - total) < 0.05;
+  const totalEl = document.getElementById(`edit-total-${editingExpenseId}`);
+  if (totalEl) {
+    totalEl.style.color = sumOk ? '#34d399' : '#f87171';
+    totalEl.textContent = `$${fmt(Math.round(sumEdit * 100) / 100)} / $${fmt(total)} ${sumOk ? '✓' : '⚠ no coincide'}`;
+  }
+}
+
+function toggleLock(key) {
+  lockedKeys.has(key) ? lockedKeys.delete(key) : lockedKeys.add(key);
+  const isLocked = lockedKeys.has(key);
+  const btn = document.getElementById(`lock-${key}`);
+  if (btn) {
+    btn.style.color         = isLocked ? '#e8b83c' : 'rgba(255,255,255,.18)';
+    btn.title               = isLocked ? 'Desbloquear' : 'Fijar valor';
+    btn.querySelector('i').className = `bi ${isLocked ? 'bi-lock-fill' : 'bi-unlock'}`;
+  }
+}
+
+function saveEditExpense(id) {
+  const expenses = loadExpenses();
+  const expense  = expenses.find(e => e.id === id);
+  const allKeys  = ['tu', ...expense.charges.map(c => String(c.id))];
+  const sumEdit  = allKeys.reduce((s, k) => s + (editingAmounts[k] || 0), 0);
+
+  if (Math.abs(sumEdit - expense.total) > 0.05)
+    return toast('La distribución no suma el total. Ajusta los montos.', 'danger');
+
+  expense.myShare = editingAmounts['tu'] || 0;
+  expense.charges.forEach(c => { c.amount = editingAmounts[String(c.id)] || 0; });
+
+  saveExpenses(expenses);
+  editingExpenseId = null;
+  editingAmounts   = {};
+  lockedKeys       = new Set();
+  renderList();
+  toast('Distribución actualizada.', 'success');
+}
+
+function toggleCharge(expenseId, chargeId) {
+  const expenses = loadExpenses();
+  const expense  = expenses.find(e => e.id === expenseId);
+  const charge   = expense.charges.find(c => c.id == chargeId);
+  charge.paid    = !charge.paid;
+  saveExpenses(expenses);
+  renderList();
+}
+
+function deleteExpense(id) {
+  const e = loadExpenses().find(e => e.id === id);
+  document.getElementById('confirm-delete-name').textContent = e.name;
+  const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-confirm-delete'));
+  document.getElementById('confirm-delete-btn').onclick = () => {
+    saveExpenses(loadExpenses().filter(e => e.id !== id));
+    modal.hide();
+    renderList();
+    toast('Gasto eliminado.', 'info');
+  };
+  modal.show();
+}
+
+// ── Modal: Gestionar contactos ─────────────────────────
+function openContactsModal() {
+  renderContactsModalList();
+  document.getElementById('contacts-new-input').value = '';
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-contacts')).show();
+}
+
+function renderContactsModalList() {
+  const contacts = loadContacts();
+  const el = document.getElementById('contacts-modal-list');
+  if (!contacts.length) {
+    el.innerHTML = `<p class="text-center small" style="color:var(--text-muted)">Sin contactos registrados</p>`;
+    return;
+  }
+  el.innerHTML = contacts.map(c => `
+    <div class="contact-item">
+      <span><i class="bi bi-person-circle me-2" style="color:var(--green1)"></i>${esc(c)}</span>
+      <button class="btn btn-sm btn-outline-danger" data-name="${esc(c)}" onclick="deleteContact(this.dataset.name)">
+        <i class="bi bi-trash"></i>
+      </button>
+    </div>`).join('');
+}
+
+function addContactFromModal() {
+  const input = document.getElementById('contacts-new-input');
+  const name  = input.value.trim();
+  if (!name) return;
+  if (addContactToList(name)) {
+    input.value = '';
+    renderContactsModalList();
+    toast(`"${name}" agregado.`, 'success');
+  } else {
+    toast('Ese nombre ya existe.', 'info');
+  }
+}
+
+function deleteContact(name) {
+  document.getElementById('confirm-delete-name').textContent = name;
+  const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-confirm-delete'));
+  document.getElementById('confirm-delete-btn').onclick = () => {
+    saveContacts(loadContacts().filter(c => c !== name));
+    selectedPeople = selectedPeople.filter(p => p.toLowerCase() !== name.toLowerCase());
+    renderChips();
+    updatePreview();
+    modal.hide();
+    renderContactsModalList();
+    toast(`"${name}" eliminado.`, 'info');
+  };
+  modal.show();
+}
+
+// ── Modal: Agregar persona (desde "Otro...") ───────────
+function openAddPersonModal() {
+  closePeoplePanel();
+  document.getElementById('add-person-input').value = '';
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-add-person')).show();
+  setTimeout(() => document.getElementById('add-person-input').focus(), 300);
+}
+
+function saveNewPerson() {
+  const name = document.getElementById('add-person-input').value.trim();
+  if (!name) return;
+
+  const added = addContactToList(name);
+  if (!selectedPeople.some(p => p.toLowerCase() === name.toLowerCase())) {
+    selectedPeople.push(name);
+  }
+  renderChips();
+  updatePreview();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-add-person')).hide();
+  toast(`"${name}" agregado${added ? ' a contactos' : ''} y seleccionado.`, 'success');
+}
+
+// ── Utilidades ─────────────────────────────────────────
+function fmt(n) { return Number(n).toLocaleString('es-CL'); }
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function toast(msg, type) {
+  const el  = document.getElementById('toast');
+  const cls = { success:'toast-success', danger:'toast-danger', info:'toast-info' };
+  el.className = `toast align-items-center border-0 ${cls[type] || 'toast-info'}`;
+  document.getElementById('toast-msg').textContent = msg;
+  bootstrap.Toast.getOrCreateInstance(el, { delay: 3000 }).show();
+}
+
+// ── Init ───────────────────────────────────────────────
+document.getElementById('f-date').value = todayISO();
+initMonths();
+renderList();
+
+</script>
+</body>
+</html>

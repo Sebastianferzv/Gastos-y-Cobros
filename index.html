@@ -205,7 +205,7 @@
     /* ── Summary pills ───────────────────────── */
     .summary-pill {
       display: inline-flex; align-items: center; gap: 5px;
-      padding: 4px 10px; border-radius: 99px;
+      padding: 5px 11px; border-radius: 7px;
       font-size: .78rem; font-weight: 500; white-space: nowrap;
     }
     .summary-pill.my-share  { background: rgba(201,154,20,.15);  color: var(--gold2); }
@@ -833,10 +833,7 @@ function renderList() {
           </button>
         </div>
       </div>` : e.charges.length ? `
-      <div class="mt-3">
-        <div style="font-size:.72rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:.5rem">
-          Lo que deben
-        </div>
+      <div class="mt-3" style="border-top:1px solid rgba(255,255,255,.07);padding-top:.75rem">
         <div class="d-flex flex-wrap gap-2">
           ${e.charges.map(c => `
             <button class="person-btn ${c.paid ? 'paid' : ''}" onclick="toggleCharge('${e.id}',${c.id})">

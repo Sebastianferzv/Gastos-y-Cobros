@@ -307,6 +307,29 @@
     .toast-danger  { background: rgba(239,68,68,.9) !important; color: #fff !important; }
     .toast-info    { background: rgba(201,154,20,.88) !important; color: #0e0b00 !important; }
 
+    /* ── Resumen por persona ─────────────────── */
+    .resumen-card {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1rem 1.1rem; margin-bottom: .75rem;
+    }
+    .resumen-card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: .65rem;
+    }
+    .resumen-person-name {
+      font-size: 1rem; font-weight: 700; color: var(--text);
+    }
+    .resumen-total {
+      font-size: 1rem; font-weight: 700; color: var(--gold2);
+    }
+    .resumen-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: .3rem 0; border-top: 1px solid rgba(255,255,255,.05);
+      font-size: .83rem;
+    }
+    .resumen-row-name { color: var(--text-muted); flex: 1; padding-right: .5rem; }
+    .resumen-row-amount { color: var(--text); font-weight: 500; white-space: nowrap; }
+
     /* ── Misc ────────────────────────────────── */
     input[type=number]::-webkit-inner-spin-button,
     input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
@@ -321,9 +344,14 @@
 <div class="navbar-wrap mb-4">
   <div class="container d-flex align-items-center justify-content-between" style="max-width:900px">
     <span class="logo-text"><i class="bi bi-cash-stack me-2"></i>Gastos y Cobros</span>
-    <button class="btn-contacts" onclick="openContactsModal()">
-      <i class="bi bi-people me-1"></i>Contactos
-    </button>
+    <div class="d-flex gap-2">
+      <button class="btn-contacts" onclick="openResumenModal()">
+        <i class="bi bi-bar-chart-line me-1"></i>Resumen
+      </button>
+      <button class="btn-contacts" onclick="openContactsModal()">
+        <i class="bi bi-people me-1"></i>Contactos
+      </button>
+    </div>
   </div>
 </div>
 
@@ -438,6 +466,19 @@
         <button class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancelar</button>
         <button class="btn btn-danger px-4" id="confirm-delete-btn">Eliminar</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Resumen por persona ══════════════════════ -->
+<div class="modal fade" id="modal-resumen" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-bar-chart-line me-2"></i>Resumen de deudas</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="resumen-body"></div>
     </div>
   </div>
 </div>
@@ -981,6 +1022,51 @@ function deleteExpense(id) {
     toast('Gasto eliminado.', 'info');
   };
   modal.show();
+}
+
+// ── Modal: Resumen por persona ──────────────────────────
+function openResumenModal() {
+  const expenses = loadExpenses();
+
+  // Agrupa deudas pendientes por persona (todos los meses)
+  const byPerson = {};
+  expenses.forEach(e => {
+    e.charges.forEach(c => {
+      if (c.paid) return;
+      if (!byPerson[c.person]) byPerson[c.person] = [];
+      byPerson[c.person].push({ expenseName: e.name, amount: c.amount, date: e.date, month: getExpenseMonth(e) });
+    });
+  });
+
+  const names = Object.keys(byPerson).sort();
+  const body = document.getElementById('resumen-body');
+
+  if (!names.length) {
+    body.innerHTML = `
+      <div class="text-center py-5" style="color:var(--text-muted)">
+        <i class="bi bi-check-circle" style="font-size:2.5rem;opacity:.3"></i>
+        <p class="mt-3 mb-0 small">Sin deudas pendientes</p>
+      </div>`;
+  } else {
+    body.innerHTML = names.map(name => {
+      const rows = byPerson[name];
+      const total = rows.reduce((s, r) => s + r.amount, 0);
+      return `
+        <div class="resumen-card">
+          <div class="resumen-card-header">
+            <span class="resumen-person-name"><i class="bi bi-person-fill me-2" style="opacity:.4"></i>${esc(name)}</span>
+            <span class="resumen-total">$${fmt(total)}</span>
+          </div>
+          ${rows.map(r => `
+            <div class="resumen-row">
+              <span class="resumen-row-name">${esc(r.expenseName)}<span style="opacity:.4;margin-left:.4rem;font-size:.75rem">${fmtDate(r.date)}</span></span>
+              <span class="resumen-row-amount">$${fmt(r.amount)}</span>
+            </div>`).join('')}
+        </div>`;
+    }).join('');
+  }
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-resumen')).show();
 }
 
 // ── Modal: Gestionar contactos ─────────────────────────

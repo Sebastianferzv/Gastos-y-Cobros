@@ -329,6 +329,13 @@
     }
     .resumen-row-name { color: var(--text-muted); flex: 1; padding-right: .5rem; }
     .resumen-row-amount { color: var(--text); font-weight: 500; white-space: nowrap; }
+    .copy-wsp-btn {
+      background: rgba(37,211,102,.12); border: 1px solid rgba(37,211,102,.3);
+      color: #25d366; cursor: pointer; padding: 4px 9px; border-radius: 8px;
+      font-size: .85rem; transition: all .15s; line-height: 1;
+    }
+    .copy-wsp-btn:hover { background: rgba(37,211,102,.25); border-color: rgba(37,211,102,.55); }
+    .copy-wsp-btn.copied { background: rgba(37,211,102,.25); color: #fff; }
 
     /* ── Misc ────────────────────────────────── */
     input[type=number]::-webkit-inner-spin-button,
@@ -1051,11 +1058,17 @@ function openResumenModal() {
     body.innerHTML = names.map(name => {
       const rows = byPerson[name];
       const total = rows.reduce((s, r) => s + r.amount, 0);
+      const idx = names.indexOf(name);
       return `
         <div class="resumen-card">
           <div class="resumen-card-header">
             <span class="resumen-person-name"><i class="bi bi-person-fill me-2" style="opacity:.4"></i>${esc(name)}</span>
-            <span class="resumen-total">$${fmt(total)}</span>
+            <div class="d-flex align-items-center gap-2">
+              <span class="resumen-total">$${fmt(total)}</span>
+              <button class="copy-wsp-btn" onclick="copyWsp(${idx})" id="copy-btn-${idx}" title="Copiar para WhatsApp">
+                <i class="bi bi-whatsapp"></i>
+              </button>
+            </div>
           </div>
           ${rows.map(r => `
             <div class="resumen-row">
@@ -1066,7 +1079,29 @@ function openResumenModal() {
     }).join('');
   }
 
+  // Guarda datos para que copyWsp pueda accederlos
+  document.getElementById('modal-resumen').dataset.resumen = JSON.stringify(
+    names.map(name => ({ name, rows: byPerson[name] }))
+  );
+
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-resumen')).show();
+}
+
+function copyWsp(idx) {
+  const data = JSON.parse(document.getElementById('modal-resumen').dataset.resumen);
+  const { name, rows } = data[idx];
+  const total = rows.reduce((s, r) => s + r.amount, 0);
+  const lines = rows.map(r => `${fmt(r.amount)} ${r.expenseName}`).join('\n');
+  const text = `Detalle cobro:\n${lines}\nTotal: ${fmt(total)}`;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById(`copy-btn-${idx}`);
+    btn.classList.add('copied');
+    btn.innerHTML = '<i class="bi bi-check-lg"></i>';
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerHTML = '<i class="bi bi-whatsapp"></i>';
+    }, 2000);
+  });
 }
 
 // ── Modal: Gestionar contactos ─────────────────────────

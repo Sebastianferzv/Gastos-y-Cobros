@@ -311,6 +311,7 @@
     .resumen-card {
       background: var(--surface2); border: 1px solid var(--border);
       border-radius: 12px; padding: 1rem 1.1rem; margin-bottom: .75rem;
+      position: relative;
     }
     .resumen-card-header {
       display: flex; align-items: center; justify-content: space-between;
@@ -330,12 +331,13 @@
     .resumen-row-name { color: var(--text-muted); flex: 1; padding-right: .5rem; }
     .resumen-row-amount { color: var(--text); font-weight: 500; white-space: nowrap; }
     .copy-wsp-btn {
-      background: rgba(37,211,102,.12); border: 1px solid rgba(37,211,102,.3);
-      color: #25d366; cursor: pointer; padding: 4px 9px; border-radius: 8px;
-      font-size: .85rem; transition: all .15s; line-height: 1;
+      position: absolute; top: .7rem; right: .7rem;
+      background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+      color: var(--text-muted); cursor: pointer; padding: 4px 8px; border-radius: 7px;
+      font-size: .82rem; transition: all .15s; line-height: 1;
     }
-    .copy-wsp-btn:hover { background: rgba(37,211,102,.25); border-color: rgba(37,211,102,.55); }
-    .copy-wsp-btn.copied { background: rgba(37,211,102,.25); color: #fff; }
+    .copy-wsp-btn:hover { background: rgba(201,154,20,.15); border-color: rgba(201,154,20,.35); color: var(--gold2); }
+    .copy-wsp-btn.copied { background: rgba(52,211,153,.15); border-color: rgba(52,211,153,.35); color: #34d399; }
 
     /* ── Misc ────────────────────────────────── */
     input[type=number]::-webkit-inner-spin-button,
@@ -1061,14 +1063,12 @@ function openResumenModal() {
       const idx = names.indexOf(name);
       return `
         <div class="resumen-card">
+          <button class="copy-wsp-btn" onclick="copyWsp(${idx})" id="copy-btn-${idx}" title="Copiar">
+            <i class="bi bi-clipboard"></i>
+          </button>
           <div class="resumen-card-header">
             <span class="resumen-person-name"><i class="bi bi-person-fill me-2" style="opacity:.4"></i>${esc(name)}</span>
-            <div class="d-flex align-items-center gap-2">
-              <span class="resumen-total">$${fmt(total)}</span>
-              <button class="copy-wsp-btn" onclick="copyWsp(${idx})" id="copy-btn-${idx}" title="Copiar para WhatsApp">
-                <i class="bi bi-whatsapp"></i>
-              </button>
-            </div>
+            <span class="resumen-total">$${fmt(total)}</span>
           </div>
           ${rows.map(r => `
             <div class="resumen-row">
@@ -1099,7 +1099,7 @@ function copyWsp(idx) {
     btn.innerHTML = '<i class="bi bi-check-lg"></i>';
     setTimeout(() => {
       btn.classList.remove('copied');
-      btn.innerHTML = '<i class="bi bi-whatsapp"></i>';
+      btn.innerHTML = '<i class="bi bi-clipboard"></i>';
     }, 2000);
   });
 }

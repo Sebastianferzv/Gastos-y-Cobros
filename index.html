@@ -276,8 +276,8 @@
     /* ── Filter pending toggle ───────────────── */
     .filter-pending-btn {
       background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.12);
-      color: var(--text-muted); cursor: pointer; padding: 5px 14px; border-radius: 99px;
-      font-size: .8rem; font-weight: 500; transition: all .15s;
+      color: var(--text-muted); cursor: pointer; padding: 5px 12px; border-radius: 8px;
+      font-size: .8rem; font-weight: 500; transition: all .15s; white-space: nowrap;
       font-family: 'Plus Jakarta Sans', sans-serif; display: inline-flex; align-items: center; gap: 6px;
     }
     .filter-pending-btn:hover { border-color: rgba(201,154,20,.4); color: var(--gold2); }
@@ -801,16 +801,16 @@ function renderList() {
   const wrap = document.getElementById('month-filter-wrap');
   if (wrap) {
     wrap.innerHTML = `
-      <div class="month-pills-wrap">
-        ${[...months].reverse().map(m => `
-          <button class="month-pill${m === selectedMonth ? ' active' : ''}" onclick="selectMonth('${m}')">
-            ${fmtMonth(m)}
-          </button>`).join('')}
-        <button class="month-pill-add" onclick="openAddMonthModal()" title="Agregar mes">
-          <i class="bi bi-plus-lg"></i>
-        </button>
-      </div>
-      <div style="margin-top:.6rem">
+      <div style="display:flex;align-items:center;gap:.6rem">
+        <div class="month-pills-wrap" style="flex:1;min-width:0">
+          ${[...months].reverse().map(m => `
+            <button class="month-pill${m === selectedMonth ? ' active' : ''}" onclick="selectMonth('${m}')">
+              ${fmtMonth(m)}
+            </button>`).join('')}
+          <button class="month-pill-add" onclick="openAddMonthModal()" title="Agregar mes">
+            <i class="bi bi-plus-lg"></i>
+          </button>
+        </div>
         <button class="filter-pending-btn${filterPending ? ' active' : ''}" onclick="toggleFilterPending()">
           <i class="bi ${filterPending ? 'bi-funnel-fill' : 'bi-funnel'}"></i>
           Solo pendientes

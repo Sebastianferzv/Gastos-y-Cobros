@@ -634,6 +634,7 @@ function saveNewMonth() {
 let editingExpenseId = null;
 let editingAmounts   = {};
 let lockedKeys       = new Set();
+let editingTotal     = 0;
 
 // ── Utilidades fecha ───────────────────────────────────
 function todayISO() { return new Date().toISOString().slice(0, 10); }
@@ -877,10 +878,34 @@ function renderList() {
     // ── Fila inferior según modo ─────────────────────────
     const bottomRow = isEditing ? `
       <div class="edit-panel mt-3">
-        ${editRows}
-        <div id="edit-total-${e.id}" style="font-size:.78rem;text-align:right;margin-top:6px;color:${sumOk ? '#34d399' : '#f87171'}">
-          $${fmt(Math.round(sumEdit * 100) / 100)} / $${fmt(e.total)} ${sumOk ? '✓' : '⚠ no coincide'}
+
+        <div class="row g-2 mb-3">
+          <div class="col-12">
+            <label class="label-xs mb-1">Nombre</label>
+            <input id="ei-name" type="text" class="form-control form-control-sm" value="${esc(e.name)}">
+          </div>
+          <div class="col-7">
+            <label class="label-xs mb-1">Fecha</label>
+            <input id="ei-date" type="date" class="form-control form-control-sm" value="${e.date}">
+          </div>
+          <div class="col-5">
+            <label class="label-xs mb-1">Total</label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text" style="font-size:.8rem">$</span>
+              <input id="ei-total" type="number" class="form-control form-control-sm" value="${e.total}" min="1" step="1"
+                     oninput="updateEditTotal(this.value)">
+            </div>
+          </div>
         </div>
+
+        <div style="border-top:1px solid rgba(255,255,255,.07);padding-top:.75rem;margin-bottom:.5rem">
+          <div class="label-xs mb-2">Distribución</div>
+          ${editRows}
+          <div id="edit-total-${e.id}" style="font-size:.78rem;text-align:right;margin-top:6px;color:${sumOk ? '#34d399' : '#f87171'}">
+            $${fmt(Math.round(sumEdit * 100) / 100)} / $${fmt(e.total)} ${sumOk ? '✓' : '⚠ no coincide'}
+          </div>
+        </div>
+
         <div class="d-flex justify-content-end gap-2 mt-3">
           <button class="btn btn-sm btn-success py-0 px-2" style="font-size:.78rem" onclick="saveEditExpense('${e.id}')">
             <i class="bi bi-check-lg me-1"></i>Guardar
@@ -935,6 +960,7 @@ function renderList() {
 function startEditExpense(id) {
   const expense = loadExpenses().find(e => e.id === id);
   editingExpenseId = id;
+  editingTotal     = expense.total;
   editingAmounts   = { tu: expense.myShare ?? 0 };
   lockedKeys       = new Set();
   expense.charges.forEach(c => { editingAmounts[String(c.id)] = c.amount; });
@@ -945,12 +971,35 @@ function cancelEditExpense() {
   editingExpenseId = null;
   editingAmounts   = {};
   lockedKeys       = new Set();
+  editingTotal     = 0;
   renderList();
+}
+
+function updateEditTotal(rawVal) {
+  const val = Math.max(1, parseFloat(rawVal) || 0);
+  editingTotal = val;
+  const expense = loadExpenses().find(e => e.id === editingExpenseId);
+  const allKeys = ['tu', ...expense.charges.map(c => String(c.id))];
+  const n = allKeys.length;
+  const base = Math.round(val / n * 100) / 100;
+  const rem  = Math.round((val - base * n) * 100) / 100;
+  allKeys.forEach((k, i) => {
+    editingAmounts[k] = i === 0 ? Math.round((base + rem) * 100) / 100 : base;
+    const inp = document.getElementById(`ei-${k}`);
+    if (inp) inp.value = editingAmounts[k];
+  });
+  lockedKeys.clear();
+  const sumEdit = allKeys.reduce((s, k) => s + (editingAmounts[k] || 0), 0);
+  const totalEl = document.getElementById(`edit-total-${editingExpenseId}`);
+  if (totalEl) {
+    totalEl.style.color = '#34d399';
+    totalEl.textContent = `$${fmt(Math.round(sumEdit * 100) / 100)} / $${fmt(val)} ✓`;
+  }
 }
 
 function updateEditAmount(key, rawVal) {
   const expense = loadExpenses().find(e => e.id === editingExpenseId);
-  const total   = expense.total;
+  const total   = editingTotal || expense.total;
   const val     = Math.max(0, Math.min(parseFloat(rawVal) || 0, total));
   editingAmounts[key] = val;
 
@@ -994,12 +1043,22 @@ function toggleLock(key) {
 function saveEditExpense(id) {
   const expenses = loadExpenses();
   const expense  = expenses.find(e => e.id === id);
-  const allKeys  = ['tu', ...expense.charges.map(c => String(c.id))];
-  const sumEdit  = allKeys.reduce((s, k) => s + (editingAmounts[k] || 0), 0);
 
-  if (Math.abs(sumEdit - expense.total) > 0.05)
+  const newName  = document.getElementById('ei-name')?.value.trim();
+  const newDate  = document.getElementById('ei-date')?.value;
+  const newTotal = editingTotal || expense.total;
+
+  if (!newName) return toast('El nombre no puede estar vacío.', 'danger');
+
+  const allKeys = ['tu', ...expense.charges.map(c => String(c.id))];
+  const sumEdit = allKeys.reduce((s, k) => s + (editingAmounts[k] || 0), 0);
+
+  if (Math.abs(sumEdit - newTotal) > 0.05)
     return toast('La distribución no suma el total. Ajusta los montos.', 'danger');
 
+  expense.name    = newName;
+  expense.date    = newDate || expense.date;
+  expense.total   = newTotal;
   expense.myShare = editingAmounts['tu'] || 0;
   expense.charges.forEach(c => { c.amount = editingAmounts[String(c.id)] || 0; });
 
@@ -1007,8 +1066,9 @@ function saveEditExpense(id) {
   editingExpenseId = null;
   editingAmounts   = {};
   lockedKeys       = new Set();
+  editingTotal     = 0;
   renderList();
-  toast('Distribución actualizada.', 'success');
+  toast('Gasto actualizado.', 'success');
 }
 
 function toggleCharge(expenseId, chargeId) {

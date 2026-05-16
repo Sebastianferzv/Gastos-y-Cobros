@@ -260,6 +260,11 @@
       background: rgba(201,154,20,.05); border: 1px solid rgba(201,154,20,.12);
       border-radius: 12px; padding: 14px;
     }
+    .edit-tabs { display: flex; border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,.1); margin-bottom: .85rem; }
+    .edit-tab-btn { flex: 1; padding: 6px 4px; font-size: .73rem; font-weight: 600; background: transparent; border: none; border-right: 1px solid rgba(255,255,255,.08); color: var(--text-muted); cursor: pointer; transition: all .15s; font-family: 'Plus Jakarta Sans', sans-serif; }
+    .edit-tab-btn:last-child { border-right: none; }
+    .edit-tab-btn.active { background: rgba(201,154,20,.2); color: var(--gold2); }
+    .edit-tab-btn:hover:not(.active) { background: rgba(255,255,255,.05); color: var(--text); }
     .edit-dist-btn {
       background: rgba(234,88,12,.18); border: 1px solid rgba(234,88,12,.35);
       color: #fb923c; cursor: pointer; padding: 5px 9px; border-radius: 8px;
@@ -635,6 +640,10 @@ let editingExpenseId = null;
 let editingAmounts   = {};
 let lockedKeys       = new Set();
 let editingTotal     = 0;
+let editingTab       = 'monto';
+let editingPercents  = {};
+let editingTipPct    = 10;
+let editingBaseAmts  = {};
 
 // ── Utilidades fecha ───────────────────────────────────
 function todayISO() { return new Date().toISOString().slice(0, 10); }
@@ -847,34 +856,6 @@ function renderList() {
     const allPaid   = e.charges.length === 0 || e.charges.every(c => c.paid);
     const isEditing = editingExpenseId === e.id;
 
-    // ── Modo edición ────────────────────────────────────
-    const allKeys  = ['tu', ...e.charges.map(c => String(c.id))];
-    const sumEdit  = isEditing ? allKeys.reduce((s, k) => s + (editingAmounts[k] || 0), 0) : 0;
-    const sumOk    = Math.abs(sumEdit - e.total) < 0.05;
-    const editRows = isEditing ? [
-        { key: 'tu', label: 'Tú', amount: editingAmounts['tu'] ?? myShare },
-        ...e.charges.map(c => ({ key: String(c.id), label: c.person, amount: editingAmounts[String(c.id)] ?? c.amount }))
-      ].map(row => {
-        const locked = lockedKeys.has(row.key);
-        return `
-        <div class="d-flex align-items-center gap-2 mb-2">
-          <span style="min-width:90px;color:var(--text-muted);font-size:.85rem;flex-shrink:0">
-            ${row.key === 'tu' ? '<i class="bi bi-person-fill me-1" style="opacity:.35"></i>' : ''}${esc(row.label)}
-          </span>
-          <div class="input-group input-group-sm">
-            <span class="input-group-text" style="font-size:.8rem">$</span>
-            <input id="ei-${row.key}" type="number" class="form-control form-control-sm"
-                   value="${row.amount}" min="0" step="1"
-                   data-key="${row.key}"
-                   oninput="updateEditAmount(this.dataset.key, this.value)">
-          </div>
-          <button id="lock-${row.key}" onclick="toggleLock('${row.key}')" title="${locked ? 'Desbloquear' : 'Fijar valor'}"
-                  style="background:none;border:none;cursor:pointer;padding:4px;flex-shrink:0;color:${locked ? '#e8b83c' : 'rgba(255,255,255,.18)'}">
-            <i class="bi ${locked ? 'bi-lock-fill' : 'bi-unlock'}" style="font-size:.85rem;pointer-events:none"></i>
-          </button>
-        </div>`;
-      }).join('') : '';
-
     // ── Fila inferior según modo ─────────────────────────
     const bottomRow = isEditing ? `
       <div class="edit-panel mt-3">
@@ -900,10 +881,12 @@ function renderList() {
 
         <div style="border-top:1px solid rgba(255,255,255,.07);padding-top:.75rem;margin-bottom:.5rem">
           <div class="label-xs mb-2">Distribución</div>
-          ${editRows}
-          <div id="edit-total-${e.id}" style="font-size:.78rem;text-align:right;margin-top:6px;color:${sumOk ? '#34d399' : '#f87171'}">
-            $${fmt(Math.round(sumEdit * 100) / 100)} / $${fmt(e.total)} ${sumOk ? '✓' : '⚠ no coincide'}
+          <div class="edit-tabs">
+            <button class="edit-tab-btn${editingTab === 'monto'      ? ' active' : ''}" onclick="setEditTab('monto')">Monto</button>
+            <button class="edit-tab-btn${editingTab === 'porcentaje' ? ' active' : ''}" onclick="setEditTab('porcentaje')">Porcentaje</button>
+            <button class="edit-tab-btn${editingTab === 'propina'    ? ' active' : ''}" onclick="setEditTab('propina')">Propina</button>
           </div>
+          ${renderEditTab(e)}
         </div>
 
         <div class="d-flex justify-content-end gap-2 mt-3">
@@ -956,22 +939,244 @@ function renderList() {
   }).join('');
 }
 
+// ── Renderizado de tabs de edición ────────────────────
+function renderEditTab(e) {
+  if (editingTab === 'porcentaje') return renderEditPorcentaje(e);
+  if (editingTab === 'propina')    return renderEditPropina(e);
+  return renderEditMonto(e);
+}
+
+function renderEditMonto(e) {
+  const myShare  = e.myShare ?? Math.round(e.total / (e.charges.length + 1) * 100) / 100;
+  const newTotal = editingTotal || e.total;
+  const rows = [
+    { key: 'tu', label: 'Tú', amount: editingAmounts['tu'] ?? myShare },
+    ...e.charges.map(c => ({ key: String(c.id), label: c.person, amount: editingAmounts[String(c.id)] ?? c.amount }))
+  ].map(row => {
+    const locked = lockedKeys.has(row.key);
+    return `
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <span style="min-width:90px;color:var(--text-muted);font-size:.85rem;flex-shrink:0">
+          ${row.key === 'tu' ? '<i class="bi bi-person-fill me-1" style="opacity:.35"></i>' : ''}${esc(row.label)}
+        </span>
+        <div class="input-group input-group-sm">
+          <span class="input-group-text" style="font-size:.8rem">$</span>
+          <input id="ei-${row.key}" type="number" class="form-control form-control-sm"
+                 value="${row.amount}" min="0" step="1" data-key="${row.key}"
+                 oninput="updateEditAmount(this.dataset.key, this.value)">
+        </div>
+        <button id="lock-${row.key}" onclick="toggleLock('${row.key}')" title="${locked ? 'Desbloquear' : 'Fijar valor'}"
+                style="background:none;border:none;cursor:pointer;padding:4px;flex-shrink:0;color:${locked ? '#e8b83c' : 'rgba(255,255,255,.18)'}">
+          <i class="bi ${locked ? 'bi-lock-fill' : 'bi-unlock'}" style="font-size:.85rem;pointer-events:none"></i>
+        </button>
+      </div>`;
+  }).join('');
+  const allKeys = ['tu', ...e.charges.map(c => String(c.id))];
+  const sumEdit = allKeys.reduce((s, k) => s + (editingAmounts[k] || 0), 0);
+  const sumOk   = Math.abs(sumEdit - newTotal) < 0.05;
+  return `${rows}
+    <div id="edit-total-${e.id}" style="font-size:.78rem;text-align:right;margin-top:6px;color:${sumOk ? '#34d399' : '#f87171'}">
+      $${fmt(Math.round(sumEdit * 100) / 100)} / $${fmt(newTotal)} ${sumOk ? '✓' : '⚠ no coincide'}
+    </div>`;
+}
+
+function renderEditPorcentaje(e) {
+  const newTotal = editingTotal || e.total;
+  const allKeys  = ['tu', ...e.charges.map(c => String(c.id))];
+  const labels   = ['Tú', ...e.charges.map(c => c.person)];
+  const sumPct   = allKeys.reduce((s, k) => s + (editingPercents[k] || 0), 0);
+  const sumOk    = Math.abs(sumPct - 100) < 0.6;
+  const rows = allKeys.map((k, i) => {
+    const pct = editingPercents[k] ?? Math.round(100 / allKeys.length * 10) / 10;
+    const amt = Math.round(newTotal * pct / 100 * 100) / 100;
+    return `
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <span style="min-width:90px;color:var(--text-muted);font-size:.85rem;flex-shrink:0">
+          ${k === 'tu' ? '<i class="bi bi-person-fill me-1" style="opacity:.35"></i>' : ''}${esc(labels[i])}
+        </span>
+        <div class="input-group input-group-sm">
+          <input id="ep-${k}" type="number" class="form-control form-control-sm"
+                 value="${pct}" min="0" max="100" step="0.1" data-key="${k}"
+                 oninput="updateEditPercent(this.dataset.key, this.value)">
+          <span class="input-group-text" style="font-size:.8rem">%</span>
+        </div>
+        <span id="ep-amt-${k}" style="min-width:65px;text-align:right;font-size:.82rem;color:var(--text-muted);white-space:nowrap">
+          $${fmt(amt)}
+        </span>
+      </div>`;
+  }).join('');
+  return `${rows}
+    <div id="edit-pct-total" style="font-size:.78rem;text-align:right;margin-top:6px;color:${sumOk ? '#34d399' : '#f87171'}">
+      ${fmt(Math.round(sumPct * 10) / 10)}% / 100% ${sumOk ? '✓' : '⚠ no coincide'}
+    </div>`;
+}
+
+function renderEditPropina(e) {
+  const newTotal = editingTotal || e.total;
+  const base     = Math.round(newTotal / (1 + editingTipPct / 100) * 100) / 100;
+  const tipAmt   = Math.round((newTotal - base) * 100) / 100;
+  const allKeys  = ['tu', ...e.charges.map(c => String(c.id))];
+  const labels   = ['Tú', ...e.charges.map(c => c.person)];
+  const sumBase  = allKeys.reduce((s, k) => s + (editingBaseAmts[k] || 0), 0);
+  const baseOk   = Math.abs(sumBase - base) < 0.6;
+  const rows = allKeys.map((k, i) => {
+    const baseAmt  = editingBaseAmts[k] ?? Math.round(base / allKeys.length * 100) / 100;
+    const finalAmt = Math.round(baseAmt * (1 + editingTipPct / 100) * 100) / 100;
+    return `
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <span style="min-width:90px;color:var(--text-muted);font-size:.85rem;flex-shrink:0">
+          ${k === 'tu' ? '<i class="bi bi-person-fill me-1" style="opacity:.35"></i>' : ''}${esc(labels[i])}
+        </span>
+        <div class="input-group input-group-sm">
+          <span class="input-group-text" style="font-size:.8rem">$</span>
+          <input id="eb-${k}" type="number" class="form-control form-control-sm"
+                 value="${baseAmt}" min="0" step="1" data-key="${k}"
+                 oninput="updateEditBaseAmt(this.dataset.key, this.value)">
+        </div>
+        <span id="eb-final-${k}" style="min-width:65px;text-align:right;font-size:.82rem;color:var(--text-muted);white-space:nowrap">
+          = $${fmt(finalAmt)}
+        </span>
+      </div>`;
+  }).join('');
+  return `
+    <div class="d-flex align-items-center gap-2 mb-3">
+      <span style="color:var(--text-muted);font-size:.82rem;flex-shrink:0">Propina</span>
+      <div class="input-group input-group-sm" style="max-width:90px">
+        <input type="number" class="form-control form-control-sm" value="${editingTipPct}"
+               min="0" max="99" step="1" oninput="updateTipPct(this.value)">
+        <span class="input-group-text" style="font-size:.8rem">%</span>
+      </div>
+      <span id="edit-propina-info" style="font-size:.78rem;color:var(--text-muted)">
+        Sin propina $${fmt(base)} · Propina $${fmt(tipAmt)}
+      </span>
+    </div>
+    ${rows}
+    <div id="edit-base-total" style="font-size:.78rem;text-align:right;margin-top:6px;color:${baseOk ? '#34d399' : '#f87171'}">
+      Base: $${fmt(Math.round(sumBase * 100) / 100)} / $${fmt(base)} ${baseOk ? '✓' : '⚠ no coincide'}
+    </div>`;
+}
+
+function setEditTab(tab) {
+  if (tab === editingTab) return;
+  const expense = loadExpenses().find(e => e.id === editingExpenseId);
+  const total   = editingTotal || expense.total;
+  const allKeys = ['tu', ...expense.charges.map(c => String(c.id))];
+  const n       = allKeys.length;
+
+  if (tab === 'porcentaje') {
+    allKeys.forEach(k => {
+      editingPercents[k] = Math.round((editingAmounts[k] || 0) / total * 100 * 10) / 10;
+    });
+    const sp = allKeys.reduce((s, k) => s + editingPercents[k], 0);
+    editingPercents['tu'] = Math.round((editingPercents['tu'] + (100 - sp)) * 10) / 10;
+  } else if (tab === 'propina') {
+    const base = Math.round(total / (1 + editingTipPct / 100) * 100) / 100;
+    const bp   = Math.round(base / n * 100) / 100;
+    const br   = Math.round((base - bp * n) * 100) / 100;
+    allKeys.forEach((k, i) => { editingBaseAmts[k] = i === 0 ? Math.round((bp + br) * 100) / 100 : bp; });
+  }
+  editingTab = tab;
+  renderList();
+}
+
+function updateEditPercent(key, rawVal) {
+  editingPercents[key] = Math.max(0, Math.min(100, parseFloat(rawVal) || 0));
+  const expense = loadExpenses().find(e => e.id === editingExpenseId);
+  const allKeys = ['tu', ...expense.charges.map(c => String(c.id))];
+  const total   = editingTotal || expense.total;
+  const sumPct  = allKeys.reduce((s, k) => s + (editingPercents[k] || 0), 0);
+  const sumOk   = Math.abs(sumPct - 100) < 0.6;
+  allKeys.forEach(k => {
+    const el = document.getElementById(`ep-amt-${k}`);
+    if (el) el.textContent = `$${fmt(Math.round(total * (editingPercents[k] || 0) / 100 * 100) / 100)}`;
+  });
+  const sumEl = document.getElementById('edit-pct-total');
+  if (sumEl) {
+    sumEl.style.color = sumOk ? '#34d399' : '#f87171';
+    sumEl.textContent = `${fmt(Math.round(sumPct * 10) / 10)}% / 100% ${sumOk ? '✓' : '⚠ no coincide'}`;
+  }
+}
+
+function updateEditBaseAmt(key, rawVal) {
+  editingBaseAmts[key] = Math.max(0, parseFloat(rawVal) || 0);
+  const expense  = loadExpenses().find(e => e.id === editingExpenseId);
+  const allKeys  = ['tu', ...expense.charges.map(c => String(c.id))];
+  const total    = editingTotal || expense.total;
+  const base     = Math.round(total / (1 + editingTipPct / 100) * 100) / 100;
+  const sumBase  = allKeys.reduce((s, k) => s + (editingBaseAmts[k] || 0), 0);
+  const baseOk   = Math.abs(sumBase - base) < 0.6;
+  const finalAmt = Math.round(editingBaseAmts[key] * (1 + editingTipPct / 100) * 100) / 100;
+  const finalEl  = document.getElementById(`eb-final-${key}`);
+  if (finalEl) finalEl.textContent = `= $${fmt(finalAmt)}`;
+  const sumEl = document.getElementById('edit-base-total');
+  if (sumEl) {
+    sumEl.style.color = baseOk ? '#34d399' : '#f87171';
+    sumEl.textContent = `Base: $${fmt(Math.round(sumBase * 100) / 100)} / $${fmt(base)} ${baseOk ? '✓' : '⚠ no coincide'}`;
+  }
+}
+
+function updateTipPct(rawVal) {
+  editingTipPct = Math.max(0, Math.min(99, parseFloat(rawVal) || 0));
+  const expense = loadExpenses().find(e => e.id === editingExpenseId);
+  const total   = editingTotal || expense.total;
+  const base    = Math.round(total / (1 + editingTipPct / 100) * 100) / 100;
+  const tipAmt  = Math.round((total - base) * 100) / 100;
+  const allKeys = ['tu', ...expense.charges.map(c => String(c.id))];
+  const n = allKeys.length;
+  const bp = Math.round(base / n * 100) / 100;
+  const br = Math.round((base - bp * n) * 100) / 100;
+  allKeys.forEach((k, i) => {
+    editingBaseAmts[k] = i === 0 ? Math.round((bp + br) * 100) / 100 : bp;
+    const inp = document.getElementById(`eb-${k}`);
+    if (inp) inp.value = editingBaseAmts[k];
+    const finalAmt = Math.round(editingBaseAmts[k] * (1 + editingTipPct / 100) * 100) / 100;
+    const finalEl  = document.getElementById(`eb-final-${k}`);
+    if (finalEl) finalEl.textContent = `= $${fmt(finalAmt)}`;
+  });
+  const infoEl = document.getElementById('edit-propina-info');
+  if (infoEl) infoEl.textContent = `Sin propina $${fmt(base)} · Propina $${fmt(tipAmt)}`;
+  const sumEl = document.getElementById('edit-base-total');
+  if (sumEl) { sumEl.style.color = '#34d399'; sumEl.textContent = `Base: $${fmt(base)} / $${fmt(base)} ✓`; }
+}
+
 // ── Edición de distribución en tarjeta ─────────────────
 function startEditExpense(id) {
   const expense = loadExpenses().find(e => e.id === id);
   editingExpenseId = id;
   editingTotal     = expense.total;
+  editingTab       = 'monto';
+  editingTipPct    = 10;
   editingAmounts   = { tu: expense.myShare ?? 0 };
   lockedKeys       = new Set();
   expense.charges.forEach(c => { editingAmounts[String(c.id)] = c.amount; });
+
+  const allKeys = ['tu', ...expense.charges.map(c => String(c.id))];
+  const n = allKeys.length;
+
+  // Init percents from current amounts
+  allKeys.forEach(k => {
+    editingPercents[k] = Math.round(editingAmounts[k] / expense.total * 100 * 10) / 10;
+  });
+  const sumP = allKeys.reduce((s, k) => s + editingPercents[k], 0);
+  editingPercents['tu'] = Math.round((editingPercents['tu'] + (100 - sumP)) * 10) / 10;
+
+  // Init base amounts (total without 10% tip, equal split)
+  const base = Math.round(expense.total / 1.1 * 100) / 100;
+  const bp   = Math.round(base / n * 100) / 100;
+  const br   = Math.round((base - bp * n) * 100) / 100;
+  allKeys.forEach((k, i) => { editingBaseAmts[k] = i === 0 ? Math.round((bp + br) * 100) / 100 : bp; });
+
   renderList();
 }
 
 function cancelEditExpense() {
   editingExpenseId = null;
   editingAmounts   = {};
+  editingPercents  = {};
+  editingBaseAmts  = {};
   lockedKeys       = new Set();
   editingTotal     = 0;
+  editingTab       = 'monto';
   renderList();
 }
 
@@ -981,20 +1186,24 @@ function updateEditTotal(rawVal) {
   const expense = loadExpenses().find(e => e.id === editingExpenseId);
   const allKeys = ['tu', ...expense.charges.map(c => String(c.id))];
   const n = allKeys.length;
-  const base = Math.round(val / n * 100) / 100;
-  const rem  = Math.round((val - base * n) * 100) / 100;
+
+  // Reset monto amounts equal
+  const bm = Math.round(val / n * 100) / 100;
+  const rm = Math.round((val - bm * n) * 100) / 100;
   allKeys.forEach((k, i) => {
-    editingAmounts[k] = i === 0 ? Math.round((base + rem) * 100) / 100 : base;
+    editingAmounts[k] = i === 0 ? Math.round((bm + rm) * 100) / 100 : bm;
     const inp = document.getElementById(`ei-${k}`);
     if (inp) inp.value = editingAmounts[k];
   });
   lockedKeys.clear();
-  const sumEdit = allKeys.reduce((s, k) => s + (editingAmounts[k] || 0), 0);
-  const totalEl = document.getElementById(`edit-total-${editingExpenseId}`);
-  if (totalEl) {
-    totalEl.style.color = '#34d399';
-    totalEl.textContent = `$${fmt(Math.round(sumEdit * 100) / 100)} / $${fmt(val)} ✓`;
-  }
+
+  // Reset base amounts for propina tab
+  const bp2 = Math.round(val / (1 + editingTipPct / 100) * 100) / 100;
+  const bpp = Math.round(bp2 / n * 100) / 100;
+  const brr = Math.round((bp2 - bpp * n) * 100) / 100;
+  allKeys.forEach((k, i) => { editingBaseAmts[k] = i === 0 ? Math.round((bpp + brr) * 100) / 100 : bpp; });
+
+  renderList();
 }
 
 function updateEditAmount(key, rawVal) {
@@ -1043,30 +1252,56 @@ function toggleLock(key) {
 function saveEditExpense(id) {
   const expenses = loadExpenses();
   const expense  = expenses.find(e => e.id === id);
-
   const newName  = document.getElementById('ei-name')?.value.trim();
   const newDate  = document.getElementById('ei-date')?.value;
   const newTotal = editingTotal || expense.total;
-
   if (!newName) return toast('El nombre no puede estar vacío.', 'danger');
 
   const allKeys = ['tu', ...expense.charges.map(c => String(c.id))];
-  const sumEdit = allKeys.reduce((s, k) => s + (editingAmounts[k] || 0), 0);
 
-  if (Math.abs(sumEdit - newTotal) > 0.05)
-    return toast('La distribución no suma el total. Ajusta los montos.', 'danger');
+  if (editingTab === 'monto') {
+    const sumEdit = allKeys.reduce((s, k) => s + (editingAmounts[k] || 0), 0);
+    if (Math.abs(sumEdit - newTotal) > 0.05)
+      return toast('La distribución no suma el total.', 'danger');
+    expense.myShare = editingAmounts['tu'] || 0;
+    expense.charges.forEach(c => { c.amount = editingAmounts[String(c.id)] || 0; });
 
-  expense.name    = newName;
-  expense.date    = newDate || expense.date;
-  expense.total   = newTotal;
-  expense.myShare = editingAmounts['tu'] || 0;
-  expense.charges.forEach(c => { c.amount = editingAmounts[String(c.id)] || 0; });
+  } else if (editingTab === 'porcentaje') {
+    const sumPct = allKeys.reduce((s, k) => s + (editingPercents[k] || 0), 0);
+    if (Math.abs(sumPct - 100) > 0.6)
+      return toast('Los porcentajes no suman 100%.', 'danger');
+    let chargeSum = 0;
+    expense.charges.forEach(c => {
+      const amt = Math.round(newTotal * (editingPercents[String(c.id)] || 0) / 100 * 100) / 100;
+      c.amount = amt; chargeSum += amt;
+    });
+    expense.myShare = Math.round((newTotal - chargeSum) * 100) / 100;
+
+  } else if (editingTab === 'propina') {
+    const base    = newTotal / (1 + editingTipPct / 100);
+    const sumBase = allKeys.reduce((s, k) => s + (editingBaseAmts[k] || 0), 0);
+    if (Math.abs(sumBase - base) > 1)
+      return toast('Las bases no suman el monto sin propina.', 'danger');
+    let chargeSum = 0;
+    expense.charges.forEach(c => {
+      const amt = Math.round(editingBaseAmts[String(c.id)] * (1 + editingTipPct / 100) * 100) / 100;
+      c.amount = amt; chargeSum += amt;
+    });
+    expense.myShare = Math.round((newTotal - chargeSum) * 100) / 100;
+  }
+
+  expense.name  = newName;
+  expense.date  = newDate || expense.date;
+  expense.total = newTotal;
 
   saveExpenses(expenses);
   editingExpenseId = null;
   editingAmounts   = {};
+  editingPercents  = {};
+  editingBaseAmts  = {};
   lockedKeys       = new Set();
   editingTotal     = 0;
+  editingTab       = 'monto';
   renderList();
   toast('Gasto actualizado.', 'success');
 }

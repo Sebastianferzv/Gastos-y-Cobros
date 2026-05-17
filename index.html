@@ -1638,7 +1638,7 @@ function saveNewPerson() {
 }
 
 // ── Utilidades ─────────────────────────────────────────
-function fmt(n) { return Number(n).toLocaleString('es-CL'); }
+function fmt(n) { return Math.round(Number(n)).toLocaleString('es-CL'); }
 function esc(s) {
   return String(s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;')

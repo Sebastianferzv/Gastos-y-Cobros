@@ -1085,18 +1085,18 @@ function renderEditPropina(e) {
 }
 
 function renderEditDescuento(e) {
-  const newTotal   = editingTotal || e.total;
-  const preTotal   = Math.round((newTotal + editingDiscountAmt) * 100) / 100;
-  const discFactor = preTotal > 0 ? newTotal / preTotal : 1;
-  const discAmt    = editingDiscountAmt;
-  const allKeys    = ['tu', ...e.charges.map(c => String(c.id))];
-  const labels     = ['Tú', ...e.charges.map(c => c.person)];
-  const sumPre     = allKeys.reduce((s, k) => s + (editingPreAmts[k] || 0), 0);
-  const preOk      = Math.abs(sumPre - preTotal) < 0.6;
+  const total   = editingTotal || e.total;
+  const allKeys = ['tu', ...e.charges.map(c => String(c.id))];
+  const labels  = ['Tú', ...e.charges.map(c => c.person)];
+  const sumPre  = allKeys.reduce((s, k) => s + (editingPreAmts[k] || 0), 0);
+  const discAmt = Math.max(0, Math.round((sumPre - total) * 100) / 100);
+  const discPct = sumPre > 0 ? Math.round(discAmt / sumPre * 1000) / 10 : 0;
+  const factor  = sumPre > 0 ? total / sumPre : 1;
+  const hasDisc = sumPre > total + 0.5;
+
   const rows = allKeys.map((k, i) => {
-    const preAmt   = editingPreAmts[k] ?? Math.round(preTotal / allKeys.length * 100) / 100;
-    const finalAmt = Math.round(preAmt * discFactor * 100) / 100;
-    const locked   = lockedKeys.has(k);
+    const pre   = editingPreAmts[k] ?? 0;
+    const final = Math.round(pre * factor * 100) / 100;
     return `
       <div class="d-flex align-items-center gap-2 mb-2">
         <span style="min-width:90px;color:var(--text-muted);font-size:.85rem;flex-shrink:0">
@@ -1105,39 +1105,24 @@ function renderEditDescuento(e) {
         <div class="input-group input-group-sm">
           <span class="input-group-text" style="font-size:.8rem">$</span>
           <input id="ed-${k}" type="number" class="form-control form-control-sm"
-                 value="${preAmt}" min="0" step="1" data-key="${k}"
+                 value="${pre}" min="0" step="1" data-key="${k}"
                  oninput="updateEditPreAmt(this.dataset.key, this.value)">
         </div>
-        <span id="ed-final-${k}" style="min-width:60px;text-align:right;font-size:.82rem;color:var(--text-muted);white-space:nowrap">
-          = $${fmt(finalAmt)}
+        <span id="ed-final-${k}" style="min-width:70px;text-align:right;font-size:.82rem;color:var(--text-muted);white-space:nowrap">
+          → $${fmt(final)}
         </span>
-        <button id="lock-${k}" onclick="toggleLock('${k}')" title="${locked ? 'Desbloquear' : 'Fijar valor'}"
-                style="background:none;border:none;cursor:pointer;padding:4px;flex-shrink:0;color:${locked ? '#e8b83c' : 'rgba(255,255,255,.18)'}">
-          <i class="bi ${locked ? 'bi-lock-fill' : 'bi-unlock'}" style="font-size:.85rem;pointer-events:none"></i>
-        </button>
       </div>`;
   }).join('');
+
   return `
-    <div class="d-flex align-items-center gap-2 mb-3">
-      <span style="color:var(--text-muted);font-size:.82rem;flex-shrink:0">Descuento</span>
-      <div class="input-group input-group-sm" style="max-width:88px">
-        <input id="discount-pct-inp" type="number" class="form-control form-control-sm" value="${editingDiscountPct}"
-               min="0" max="99" step="0.1" oninput="updateDiscountPct(this.value)">
-        <span class="input-group-text" style="font-size:.8rem">%</span>
-      </div>
-      <div class="input-group input-group-sm" style="max-width:110px">
-        <span class="input-group-text" style="font-size:.8rem">$</span>
-        <input id="discount-amt-inp" type="number" class="form-control form-control-sm" value="${editingDiscountAmt}"
-               min="0" step="1" oninput="updateDiscountAmt(this.value)">
-      </div>
-      <span id="edit-descuento-info" style="font-size:.78rem;color:var(--text-muted)">
-        Sin dto. $${fmt(preTotal)}
-      </span>
+    <div id="desc-summary" class="d-flex align-items-center gap-3 flex-wrap mb-3" style="font-size:.82rem">
+      <span style="color:var(--text-muted)">Sin descuento: <strong style="color:var(--text)">$${fmt(sumPre)}</strong></span>
+      <span style="color:var(--text-muted)">Total final: <strong style="color:var(--text)">$${fmt(total)}</strong></span>
+      ${hasDisc
+        ? `<span style="color:var(--amber)">Descuento: <strong>$${fmt(discAmt)} (${discPct}%)</strong></span>`
+        : `<span style="color:var(--text-muted);font-style:italic">Ingrese los montos originales antes de descuento por persona</span>`}
     </div>
-    ${rows}
-    <div id="edit-pre-total" style="font-size:.78rem;text-align:right;margin-top:6px;color:${preOk ? '#34d399' : '#f87171'}">
-      Sin descuento: $${fmt(Math.round(sumPre * 100) / 100)} / $${fmt(preTotal)} ${preOk ? '✓' : '⚠ no coincide'}
-    </div>`;
+    ${rows}`;
 }
 
 function setEditTab(tab) {
@@ -1159,7 +1144,6 @@ function setEditTab(tab) {
     const br   = Math.round((base - bp * n) * 100) / 100;
     allKeys.forEach((k, i) => { editingBaseAmts[k] = i === 0 ? Math.round((bp + br) * 100) / 100 : bp; });
   } else if (tab === 'descuento') {
-    editingDiscountPct = 0;
     allKeys.forEach(k => { editingPreAmts[k] = editingAmounts[k] || 0; });
   }
   lockedKeys = new Set();
@@ -1233,82 +1217,29 @@ function updateEditBaseAmt(key, rawVal) {
   }
 }
 
-function updateDiscountPct(rawVal) {
-  const pct = Math.max(0, Math.min(99, parseFloat(rawVal) || 0));
-  editingDiscountPct = pct;
-  const expense = loadExpenses().find(e => e.id === editingExpenseId);
-  const total   = editingTotal || expense.total;
-  // Derive $ amount from %: discAmt = total * pct / (100 - pct)
-  editingDiscountAmt = pct < 100 ? Math.round(total * pct / (100 - pct) * 100) / 100 : 0;
-  const amtInp = document.getElementById('discount-amt-inp');
-  if (amtInp) amtInp.value = editingDiscountAmt;
-  _redistributePreAmts(total);
-}
-
-function updateDiscountAmt(rawVal) {
-  const amt = Math.max(0, parseFloat(rawVal) || 0);
-  editingDiscountAmt = amt;
-  const expense = loadExpenses().find(e => e.id === editingExpenseId);
-  const total   = editingTotal || expense.total;
-  // Derive % from $: pct = amt / (total + amt) * 100
-  editingDiscountPct = Math.round(amt / (total + amt) * 100 * 10) / 10;
-  const pctInp = document.getElementById('discount-pct-inp');
-  if (pctInp) pctInp.value = editingDiscountPct;
-  _redistributePreAmts(total);
-}
-
-function _redistributePreAmts(total) {
-  const expense    = loadExpenses().find(e => e.id === editingExpenseId);
-  const preTotal   = Math.round((total + editingDiscountAmt) * 100) / 100;
-  const discFactor = preTotal > 0 ? total / preTotal : 1;
-  const allKeys    = ['tu', ...expense.charges.map(c => String(c.id))];
-  const n = allKeys.length;
-  const pp = Math.round(preTotal / n * 100) / 100;
-  const pr = Math.round((preTotal - pp * n) * 100) / 100;
-  allKeys.forEach((k, i) => {
-    editingPreAmts[k] = i === 0 ? Math.round((pp + pr) * 100) / 100 : pp;
-    const inp = document.getElementById(`ed-${k}`);
-    if (inp) inp.value = editingPreAmts[k];
-    const finalEl = document.getElementById(`ed-final-${k}`);
-    if (finalEl) finalEl.textContent = `= $${fmt(Math.round(editingPreAmts[k] * discFactor * 100) / 100)}`;
-  });
-  const infoEl = document.getElementById('edit-descuento-info');
-  if (infoEl) infoEl.textContent = `Sin dto. $${fmt(preTotal)}`;
-  const sumEl = document.getElementById('edit-pre-total');
-  if (sumEl) { sumEl.style.color = '#34d399'; sumEl.textContent = `Sin descuento: $${fmt(preTotal)} / $${fmt(preTotal)} ✓`; }
-}
-
 function updateEditPreAmt(key, rawVal) {
-  const expense    = loadExpenses().find(e => e.id === editingExpenseId);
-  const total      = editingTotal || expense.total;
-  const preTotal   = Math.round((total + editingDiscountAmt) * 100) / 100;
-  const discFactor = preTotal > 0 ? total / preTotal : 1;
-  const val        = Math.max(0, Math.min(parseFloat(rawVal) || 0, preTotal));
-  editingPreAmts[key] = val;
-  const allKeys    = ['tu', ...expense.charges.map(c => String(c.id))];
-  const fixedSet   = new Set([key, ...lockedKeys]);
-  const toUpdate   = allKeys.filter(k => !fixedSet.has(k));
-  const fixedSum   = allKeys.filter(k => fixedSet.has(k)).reduce((s, k) => s + (editingPreAmts[k] || 0), 0);
-  const remaining  = Math.max(0, preTotal - fixedSum);
-  if (toUpdate.length > 0) {
-    const pp = Math.round(remaining / toUpdate.length * 100) / 100;
-    const pr = Math.round((remaining - pp * toUpdate.length) * 100) / 100;
-    toUpdate.forEach((k, i) => {
-      editingPreAmts[k] = i === 0 ? Math.round((pp + pr) * 100) / 100 : pp;
-      const inp = document.getElementById(`ed-${k}`);
-      if (inp) inp.value = editingPreAmts[k];
-    });
-  }
+  const expense = loadExpenses().find(e => e.id === editingExpenseId);
+  const total   = editingTotal || expense.total;
+  editingPreAmts[key] = Math.max(0, parseFloat(rawVal) || 0);
+  const allKeys = ['tu', ...expense.charges.map(c => String(c.id))];
+  const sumPre  = allKeys.reduce((s, k) => s + (editingPreAmts[k] || 0), 0);
+  const factor  = sumPre > 0 ? total / sumPre : 1;
+  const discAmt = Math.max(0, Math.round((sumPre - total) * 100) / 100);
+  const discPct = sumPre > 0 ? Math.round(discAmt / sumPre * 1000) / 10 : 0;
+  const hasDisc = sumPre > total + 0.5;
+
   allKeys.forEach(k => {
     const finalEl = document.getElementById(`ed-final-${k}`);
-    if (finalEl) finalEl.textContent = `= $${fmt(Math.round(editingPreAmts[k] * discFactor * 100) / 100)}`;
+    if (finalEl) finalEl.textContent = `→ $${fmt(Math.round((editingPreAmts[k] || 0) * factor * 100) / 100)}`;
   });
-  const sumPre = allKeys.reduce((s, k) => s + (editingPreAmts[k] || 0), 0);
-  const preOk  = Math.abs(sumPre - preTotal) < 0.6;
-  const sumEl  = document.getElementById('edit-pre-total');
-  if (sumEl) {
-    sumEl.style.color = preOk ? '#34d399' : '#f87171';
-    sumEl.textContent = `Sin descuento: $${fmt(Math.round(sumPre * 100) / 100)} / $${fmt(preTotal)} ${preOk ? '✓' : '⚠ no coincide'}`;
+  const summaryEl = document.getElementById('desc-summary');
+  if (summaryEl) {
+    summaryEl.innerHTML = `
+      <span style="color:var(--text-muted)">Sin descuento: <strong style="color:var(--text)">$${fmt(sumPre)}</strong></span>
+      <span style="color:var(--text-muted)">Total final: <strong style="color:var(--text)">$${fmt(total)}</strong></span>
+      ${hasDisc
+        ? `<span style="color:var(--amber)">Descuento: <strong>$${fmt(discAmt)} (${discPct}%)</strong></span>`
+        : `<span style="color:var(--text-muted);font-style:italic">Ingrese los montos originales antes de descuento por persona</span>`}`;
   }
 }
 
@@ -1363,9 +1294,6 @@ function startEditExpense(id) {
   const br   = Math.round((base - bp * n) * 100) / 100;
   allKeys.forEach((k, i) => { editingBaseAmts[k] = i === 0 ? Math.round((bp + br) * 100) / 100 : bp; });
 
-  // Init pre-discount amounts (same as current amounts, 0% discount)
-  editingDiscountPct = 0;
-  editingDiscountAmt = 0;
   allKeys.forEach(k => { editingPreAmts[k] = editingAmounts[k] || 0; });
 
   renderList();
@@ -1407,12 +1335,6 @@ function updateEditTotal(rawVal) {
   const bpp = Math.round(bp2 / n * 100) / 100;
   const brr = Math.round((bp2 - bpp * n) * 100) / 100;
   allKeys.forEach((k, i) => { editingBaseAmts[k] = i === 0 ? Math.round((bpp + brr) * 100) / 100 : bpp; });
-
-  // Reset pre-discount amounts
-  const preTotal2   = Math.round((val + editingDiscountAmt) * 100) / 100;
-  const pp2 = Math.round(preTotal2 / n * 100) / 100;
-  const pr2 = Math.round((preTotal2 - pp2 * n) * 100) / 100;
-  allKeys.forEach((k, i) => { editingPreAmts[k] = i === 0 ? Math.round((pp2 + pr2) * 100) / 100 : pp2; });
 
   renderList();
 }
@@ -1501,14 +1423,13 @@ function saveEditExpense(id) {
     expense.myShare = Math.round((newTotal - chargeSum) * 100) / 100;
 
   } else if (editingTab === 'descuento') {
-    const preTotal   = newTotal + editingDiscountAmt;
-    const discFactor = preTotal > 0 ? newTotal / preTotal : 1;
-    const sumPre     = allKeys.reduce((s, k) => s + (editingPreAmts[k] || 0), 0);
-    if (Math.abs(sumPre - preTotal) > 1)
-      return toast('Los montos sin descuento no cuadran.', 'danger');
+    const preTotal = allKeys.reduce((s, k) => s + (editingPreAmts[k] || 0), 0);
+    if (preTotal <= newTotal + 0.01)
+      return toast('La suma sin descuento debe ser mayor al total final.', 'danger');
+    const discFactor = newTotal / preTotal;
     let chargeSum = 0;
     expense.charges.forEach(c => {
-      const amt = Math.round(editingPreAmts[String(c.id)] * discFactor * 100) / 100;
+      const amt = Math.round((editingPreAmts[String(c.id)] || 0) * discFactor * 100) / 100;
       c.amount = amt; chargeSum += amt;
     });
     expense.myShare = Math.round((newTotal - chargeSum) * 100) / 100;

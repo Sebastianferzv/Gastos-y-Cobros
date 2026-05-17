@@ -355,6 +355,14 @@
     }
     .copy-wsp-btn:hover { background: rgba(201,154,20,.15); border-color: rgba(201,154,20,.35); color: var(--gold2); }
     .copy-wsp-btn.copied { background: rgba(52,211,153,.15); border-color: rgba(52,211,153,.35); color: #34d399; }
+    .mark-all-paid-btn {
+      position: absolute; bottom: .7rem; left: .7rem;
+      background: rgba(52,211,153,.05); border: 1px solid rgba(52,211,153,.14);
+      color: rgba(52,211,153,.45); cursor: pointer; padding: 5px 7px; border-radius: 7px;
+      font-size: .9rem; transition: all .15s; line-height: 1;
+    }
+    .mark-all-paid-btn:hover { background: rgba(52,211,153,.13); border-color: rgba(52,211,153,.35); color: rgba(52,211,153,.85); }
+    .resumen-card.completing { animation: paidComplete 0.9s ease forwards; pointer-events: none; }
 
     /* ── Misc ────────────────────────────────── */
     input[type=number]::-webkit-inner-spin-button,
@@ -505,6 +513,19 @@
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body" id="resumen-body"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ OVERLAY: Confirmar marcar todo pagado ═══════════ -->
+<div id="confirm-paid-overlay" style="display:none;position:fixed;inset:0;z-index:1060;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);align-items:center;justify-content:center">
+  <div style="background:#1a1500;border:1px solid rgba(201,154,20,.15);border-radius:16px;padding:1.5rem 1.5rem 1.2rem;max-width:300px;width:88%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.6)">
+    <i class="bi bi-check-circle mb-3 d-block" style="font-size:2rem;color:#34d399"></i>
+    <p style="margin:0 0 .4rem;font-weight:600;color:var(--text)">¿Marcar todo como pagado?</p>
+    <p id="confirm-paid-overlay-name" style="margin:0 0 1.2rem;font-size:.88rem;color:var(--text-muted)"></p>
+    <div class="d-flex gap-2 justify-content-center">
+      <button onclick="hideConfirmPaidOverlay()" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:var(--text-muted);padding:7px 18px;border-radius:9px;cursor:pointer;font-size:.85rem">Cancelar</button>
+      <button onclick="confirmPaidOverlayExecute()" style="background:rgba(52,211,153,.15);border:1px solid rgba(52,211,153,.3);color:#34d399;padding:7px 18px;border-radius:9px;cursor:pointer;font-size:.85rem;font-weight:600">Confirmar</button>
     </div>
   </div>
 </div>
@@ -992,7 +1013,9 @@ function renderEditMonto(e) {
   const allKeys = ['tu', ...e.charges.map(c => String(c.id))];
   const sumEdit = allKeys.reduce((s, k) => s + (editingAmounts[k] || 0), 0);
   const sumOk   = Math.abs(sumEdit - newTotal) < 0.05;
-  return `${rows}
+  return `
+    <p style="font-size:.78rem;color:var(--text-muted);font-style:italic;margin-bottom:10px">Ingrese cuánto paga cada persona</p>
+    ${rows}
     <div id="edit-total-${e.id}" style="font-size:.78rem;text-align:right;margin-top:6px;color:${sumOk ? '#34d399' : '#f87171'}">
       $${fmt(Math.round(sumEdit * 100) / 100)} / $${fmt(newTotal)} ${sumOk ? '✓' : '⚠ no coincide'}
     </div>`;
@@ -1028,7 +1051,9 @@ function renderEditPorcentaje(e) {
         </button>
       </div>`;
   }).join('');
-  return `${rows}
+  return `
+    <p style="font-size:.78rem;color:var(--text-muted);font-style:italic;margin-bottom:10px">Ingrese el porcentaje que paga cada persona</p>
+    ${rows}
     <div id="edit-pct-total" style="font-size:.78rem;text-align:right;margin-top:6px;color:${sumOk ? '#34d399' : '#f87171'}">
       ${fmt(Math.round(sumPct * 10) / 10)}% / 100% ${sumOk ? '✓' : '⚠ no coincide'}
     </div>`;
@@ -1067,6 +1092,7 @@ function renderEditPropina(e) {
       </div>`;
   }).join('');
   return `
+    <p style="font-size:.78rem;color:var(--text-muted);font-style:italic;margin-bottom:10px">Ingrese los montos originales antes de agregar propina</p>
     <div class="d-flex align-items-center gap-2 mb-3">
       <span style="color:var(--text-muted);font-size:.82rem;flex-shrink:0">Propina</span>
       <div class="input-group input-group-sm" style="max-width:90px">
@@ -1494,10 +1520,8 @@ function deleteExpense(id) {
 }
 
 // ── Modal: Resumen por persona ──────────────────────────
-function openResumenModal() {
+function renderResumenBody() {
   const expenses = loadExpenses();
-
-  // Agrupa deudas pendientes por persona (todos los meses)
   const byPerson = {};
   expenses.forEach(e => {
     e.charges.forEach(c => {
@@ -1517,12 +1541,14 @@ function openResumenModal() {
         <p class="mt-3 mb-0 small">Sin deudas pendientes</p>
       </div>`;
   } else {
-    body.innerHTML = names.map(name => {
+    body.innerHTML = names.map((name, idx) => {
       const rows = byPerson[name];
       const total = rows.reduce((s, r) => s + r.amount, 0);
-      const idx = names.indexOf(name);
       return `
-        <div class="resumen-card">
+        <div class="resumen-card" id="resumen-card-${idx}">
+          <button class="mark-all-paid-btn" onclick="confirmMarkAllPaid(${idx})" title="Marcar todo pagado">
+            <i class="bi bi-check-all"></i>
+          </button>
           <button class="copy-wsp-btn" onclick="copyWsp(${idx})" id="copy-btn-${idx}" title="Copiar">
             <i class="bi bi-clipboard"></i>
           </button>
@@ -1539,11 +1565,13 @@ function openResumenModal() {
     }).join('');
   }
 
-  // Guarda datos para que copyWsp pueda accederlos
   document.getElementById('modal-resumen').dataset.resumen = JSON.stringify(
     names.map(name => ({ name, rows: byPerson[name] }))
   );
+}
 
+function openResumenModal() {
+  renderResumenBody();
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-resumen')).show();
 }
 
@@ -1562,6 +1590,38 @@ function copyWsp(idx) {
       btn.innerHTML = '<i class="bi bi-clipboard"></i>';
     }, 2000);
   });
+}
+
+let _confirmPaidIdx = null;
+
+function confirmMarkAllPaid(idx) {
+  const data = JSON.parse(document.getElementById('modal-resumen').dataset.resumen);
+  const { name } = data[idx];
+  _confirmPaidIdx = idx;
+  document.getElementById('confirm-paid-overlay-name').textContent = name;
+  document.getElementById('confirm-paid-overlay').style.display = 'flex';
+}
+
+function hideConfirmPaidOverlay() {
+  document.getElementById('confirm-paid-overlay').style.display = 'none';
+  _confirmPaidIdx = null;
+}
+
+function confirmPaidOverlayExecute() {
+  const idx = _confirmPaidIdx;
+  hideConfirmPaidOverlay();
+  const data = JSON.parse(document.getElementById('modal-resumen').dataset.resumen);
+  const { name } = data[idx];
+  const card = document.getElementById(`resumen-card-${idx}`);
+  if (!card) return;
+  card.classList.add('completing');
+  setTimeout(() => {
+    const expenses = loadExpenses();
+    expenses.forEach(e => e.charges.forEach(c => { if (c.person === name && !c.paid) c.paid = true; }));
+    saveExpenses(expenses);
+    renderList();
+    renderResumenBody();
+  }, 900);
 }
 
 // ── Modal: Gestionar contactos ─────────────────────────

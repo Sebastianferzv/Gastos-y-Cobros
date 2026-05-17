@@ -255,6 +255,18 @@
     /* ── Divider ─────────────────────────────── */
     .v-divider { width: 1px; background: rgba(201,154,20,.12); align-self: stretch; }
 
+    /* ── Paid complete animation ─────────────── */
+    @keyframes paidComplete {
+      0%   { opacity: 1; box-shadow: 0 4px 24px rgba(0,0,0,.4); transform: scale(1); }
+      25%  { opacity: 1; box-shadow: 0 0 0 2px rgba(52,211,153,.8), 0 0 32px rgba(52,211,153,.45); transform: scale(1.01); }
+      60%  { opacity: 1; box-shadow: 0 0 0 2px rgba(52,211,153,.8), 0 0 32px rgba(52,211,153,.45); transform: scale(1.01); }
+      100% { opacity: 0; box-shadow: 0 0 0 1px rgba(52,211,153,.2); transform: scale(0.97); }
+    }
+    .expense-card.completing {
+      animation: paidComplete 0.9s ease forwards;
+      pointer-events: none;
+    }
+
     /* ── Edit panel ──────────────────────────── */
     .edit-panel {
       background: rgba(201,154,20,.05); border: 1px solid rgba(201,154,20,.12);
@@ -567,7 +579,8 @@ function addContactToList(name) {
 // ── Estado del formulario ──────────────────────────────
 let selectedPeople = [];
 let panelOpen = false;
-let filterPending = false;
+let filterPending = true;
+const completingExpenses = new Set();
 
 // ── Meses ──────────────────────────────────────────────
 const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -640,10 +653,13 @@ let editingExpenseId = null;
 let editingAmounts   = {};
 let lockedKeys       = new Set();
 let editingTotal     = 0;
-let editingTab       = 'monto';
-let editingPercents  = {};
-let editingTipPct    = 10;
-let editingBaseAmts  = {};
+let editingTab         = 'monto';
+let editingPercents    = {};
+let editingTipPct      = 10;
+let editingBaseAmts    = {};
+let editingDiscountPct = 0;
+let editingDiscountAmt = 0;
+let editingPreAmts     = {};
 
 // ── Utilidades fecha ───────────────────────────────────
 function todayISO() { return new Date().toISOString().slice(0, 10); }
@@ -821,9 +837,9 @@ function renderList() {
             <i class="bi bi-plus-lg"></i>
           </button>
         </div>
-        <button class="filter-pending-btn${filterPending ? ' active' : ''}" onclick="toggleFilterPending()">
-          <i class="bi ${filterPending ? 'bi-funnel-fill' : 'bi-funnel'}"></i>
-          Solo pendientes
+        <button class="filter-pending-btn${!filterPending ? ' active' : ''}" onclick="toggleFilterPending()">
+          <i class="bi ${filterPending ? 'bi-eye' : 'bi-eye-slash'}"></i>
+          ${filterPending ? 'Ver todo' : 'Solo pendientes'}
         </button>
       </div>`;
   }
@@ -832,7 +848,7 @@ function renderList() {
     if (getExpenseMonth(e) !== selectedMonth) return false;
     if (filterPending) {
       const ap = e.charges.length === 0 || e.charges.every(c => c.paid);
-      if (ap) return false;
+      if (ap && !completingExpenses.has(e.id)) return false;
     }
     return true;
   });
@@ -840,7 +856,7 @@ function renderList() {
   if (!expenses.length) {
     const msg = filterPending
       ? `Sin gastos pendientes en ${fmtMonth(selectedMonth)}`
-      : `Sin gastos en ${fmtMonth(selectedMonth)}`;
+      : `Sin gastos en ${fmtMonth(selectedMonth)} — todo pagado`;
     el.innerHTML = `
       <div class="text-center py-5" style="color:var(--text-muted)">
         <i class="bi bi-receipt" style="font-size:3rem;opacity:.3"></i>
@@ -885,6 +901,7 @@ function renderList() {
             <button class="edit-tab-btn${editingTab === 'monto'      ? ' active' : ''}" onclick="setEditTab('monto')">Monto</button>
             <button class="edit-tab-btn${editingTab === 'porcentaje' ? ' active' : ''}" onclick="setEditTab('porcentaje')">Porcentaje</button>
             <button class="edit-tab-btn${editingTab === 'propina'    ? ' active' : ''}" onclick="setEditTab('propina')">Propina</button>
+            <button class="edit-tab-btn${editingTab === 'descuento'  ? ' active' : ''}" onclick="setEditTab('descuento')">Descuento</button>
           </div>
           ${renderEditTab(e)}
         </div>
@@ -910,7 +927,7 @@ function renderList() {
       </div>` : '';
 
     return `
-      <div class="card expense-card mb-3${allPaid ? ' all-paid' : ''}">
+      <div class="card expense-card mb-3${allPaid ? ' all-paid' : ''}" data-expense-id="${e.id}">
         <div class="card-body p-4">
 
           <!-- Fila superior: datos del gasto -->
@@ -943,6 +960,7 @@ function renderList() {
 function renderEditTab(e) {
   if (editingTab === 'porcentaje') return renderEditPorcentaje(e);
   if (editingTab === 'propina')    return renderEditPropina(e);
+  if (editingTab === 'descuento')  return renderEditDescuento(e);
   return renderEditMonto(e);
 }
 
@@ -987,8 +1005,9 @@ function renderEditPorcentaje(e) {
   const sumPct   = allKeys.reduce((s, k) => s + (editingPercents[k] || 0), 0);
   const sumOk    = Math.abs(sumPct - 100) < 0.6;
   const rows = allKeys.map((k, i) => {
-    const pct = editingPercents[k] ?? Math.round(100 / allKeys.length * 10) / 10;
-    const amt = Math.round(newTotal * pct / 100 * 100) / 100;
+    const pct    = editingPercents[k] ?? Math.round(100 / allKeys.length * 10) / 10;
+    const amt    = Math.round(newTotal * pct / 100 * 100) / 100;
+    const locked = lockedKeys.has(k);
     return `
       <div class="d-flex align-items-center gap-2 mb-2">
         <span style="min-width:90px;color:var(--text-muted);font-size:.85rem;flex-shrink:0">
@@ -1000,9 +1019,13 @@ function renderEditPorcentaje(e) {
                  oninput="updateEditPercent(this.dataset.key, this.value)">
           <span class="input-group-text" style="font-size:.8rem">%</span>
         </div>
-        <span id="ep-amt-${k}" style="min-width:65px;text-align:right;font-size:.82rem;color:var(--text-muted);white-space:nowrap">
+        <span id="ep-amt-${k}" style="min-width:60px;text-align:right;font-size:.82rem;color:var(--text-muted);white-space:nowrap">
           $${fmt(amt)}
         </span>
+        <button id="lock-${k}" onclick="toggleLock('${k}')" title="${locked ? 'Desbloquear' : 'Fijar valor'}"
+                style="background:none;border:none;cursor:pointer;padding:4px;flex-shrink:0;color:${locked ? '#e8b83c' : 'rgba(255,255,255,.18)'}">
+          <i class="bi ${locked ? 'bi-lock-fill' : 'bi-unlock'}" style="font-size:.85rem;pointer-events:none"></i>
+        </button>
       </div>`;
   }).join('');
   return `${rows}
@@ -1022,6 +1045,7 @@ function renderEditPropina(e) {
   const rows = allKeys.map((k, i) => {
     const baseAmt  = editingBaseAmts[k] ?? Math.round(base / allKeys.length * 100) / 100;
     const finalAmt = Math.round(baseAmt * (1 + editingTipPct / 100) * 100) / 100;
+    const locked   = lockedKeys.has(k);
     return `
       <div class="d-flex align-items-center gap-2 mb-2">
         <span style="min-width:90px;color:var(--text-muted);font-size:.85rem;flex-shrink:0">
@@ -1033,9 +1057,13 @@ function renderEditPropina(e) {
                  value="${baseAmt}" min="0" step="1" data-key="${k}"
                  oninput="updateEditBaseAmt(this.dataset.key, this.value)">
         </div>
-        <span id="eb-final-${k}" style="min-width:65px;text-align:right;font-size:.82rem;color:var(--text-muted);white-space:nowrap">
+        <span id="eb-final-${k}" style="min-width:60px;text-align:right;font-size:.82rem;color:var(--text-muted);white-space:nowrap">
           = $${fmt(finalAmt)}
         </span>
+        <button id="lock-${k}" onclick="toggleLock('${k}')" title="${locked ? 'Desbloquear' : 'Fijar valor'}"
+                style="background:none;border:none;cursor:pointer;padding:4px;flex-shrink:0;color:${locked ? '#e8b83c' : 'rgba(255,255,255,.18)'}">
+          <i class="bi ${locked ? 'bi-lock-fill' : 'bi-unlock'}" style="font-size:.85rem;pointer-events:none"></i>
+        </button>
       </div>`;
   }).join('');
   return `
@@ -1053,6 +1081,62 @@ function renderEditPropina(e) {
     ${rows}
     <div id="edit-base-total" style="font-size:.78rem;text-align:right;margin-top:6px;color:${baseOk ? '#34d399' : '#f87171'}">
       Base: $${fmt(Math.round(sumBase * 100) / 100)} / $${fmt(base)} ${baseOk ? '✓' : '⚠ no coincide'}
+    </div>`;
+}
+
+function renderEditDescuento(e) {
+  const newTotal   = editingTotal || e.total;
+  const preTotal   = Math.round((newTotal + editingDiscountAmt) * 100) / 100;
+  const discFactor = preTotal > 0 ? newTotal / preTotal : 1;
+  const discAmt    = editingDiscountAmt;
+  const allKeys    = ['tu', ...e.charges.map(c => String(c.id))];
+  const labels     = ['Tú', ...e.charges.map(c => c.person)];
+  const sumPre     = allKeys.reduce((s, k) => s + (editingPreAmts[k] || 0), 0);
+  const preOk      = Math.abs(sumPre - preTotal) < 0.6;
+  const rows = allKeys.map((k, i) => {
+    const preAmt   = editingPreAmts[k] ?? Math.round(preTotal / allKeys.length * 100) / 100;
+    const finalAmt = Math.round(preAmt * discFactor * 100) / 100;
+    const locked   = lockedKeys.has(k);
+    return `
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <span style="min-width:90px;color:var(--text-muted);font-size:.85rem;flex-shrink:0">
+          ${k === 'tu' ? '<i class="bi bi-person-fill me-1" style="opacity:.35"></i>' : ''}${esc(labels[i])}
+        </span>
+        <div class="input-group input-group-sm">
+          <span class="input-group-text" style="font-size:.8rem">$</span>
+          <input id="ed-${k}" type="number" class="form-control form-control-sm"
+                 value="${preAmt}" min="0" step="1" data-key="${k}"
+                 oninput="updateEditPreAmt(this.dataset.key, this.value)">
+        </div>
+        <span id="ed-final-${k}" style="min-width:60px;text-align:right;font-size:.82rem;color:var(--text-muted);white-space:nowrap">
+          = $${fmt(finalAmt)}
+        </span>
+        <button id="lock-${k}" onclick="toggleLock('${k}')" title="${locked ? 'Desbloquear' : 'Fijar valor'}"
+                style="background:none;border:none;cursor:pointer;padding:4px;flex-shrink:0;color:${locked ? '#e8b83c' : 'rgba(255,255,255,.18)'}">
+          <i class="bi ${locked ? 'bi-lock-fill' : 'bi-unlock'}" style="font-size:.85rem;pointer-events:none"></i>
+        </button>
+      </div>`;
+  }).join('');
+  return `
+    <div class="d-flex align-items-center gap-2 mb-3">
+      <span style="color:var(--text-muted);font-size:.82rem;flex-shrink:0">Descuento</span>
+      <div class="input-group input-group-sm" style="max-width:88px">
+        <input id="discount-pct-inp" type="number" class="form-control form-control-sm" value="${editingDiscountPct}"
+               min="0" max="99" step="0.1" oninput="updateDiscountPct(this.value)">
+        <span class="input-group-text" style="font-size:.8rem">%</span>
+      </div>
+      <div class="input-group input-group-sm" style="max-width:110px">
+        <span class="input-group-text" style="font-size:.8rem">$</span>
+        <input id="discount-amt-inp" type="number" class="form-control form-control-sm" value="${editingDiscountAmt}"
+               min="0" step="1" oninput="updateDiscountAmt(this.value)">
+      </div>
+      <span id="edit-descuento-info" style="font-size:.78rem;color:var(--text-muted)">
+        Sin dto. $${fmt(preTotal)}
+      </span>
+    </div>
+    ${rows}
+    <div id="edit-pre-total" style="font-size:.78rem;text-align:right;margin-top:6px;color:${preOk ? '#34d399' : '#f87171'}">
+      Sin descuento: $${fmt(Math.round(sumPre * 100) / 100)} / $${fmt(preTotal)} ${preOk ? '✓' : '⚠ no coincide'}
     </div>`;
 }
 
@@ -1074,23 +1158,41 @@ function setEditTab(tab) {
     const bp   = Math.round(base / n * 100) / 100;
     const br   = Math.round((base - bp * n) * 100) / 100;
     allKeys.forEach((k, i) => { editingBaseAmts[k] = i === 0 ? Math.round((bp + br) * 100) / 100 : bp; });
+  } else if (tab === 'descuento') {
+    editingDiscountPct = 0;
+    allKeys.forEach(k => { editingPreAmts[k] = editingAmounts[k] || 0; });
   }
+  lockedKeys = new Set();
   editingTab = tab;
   renderList();
 }
 
 function updateEditPercent(key, rawVal) {
-  editingPercents[key] = Math.max(0, Math.min(100, parseFloat(rawVal) || 0));
-  const expense = loadExpenses().find(e => e.id === editingExpenseId);
-  const allKeys = ['tu', ...expense.charges.map(c => String(c.id))];
-  const total   = editingTotal || expense.total;
-  const sumPct  = allKeys.reduce((s, k) => s + (editingPercents[k] || 0), 0);
-  const sumOk   = Math.abs(sumPct - 100) < 0.6;
+  const val = Math.max(0, Math.min(100, parseFloat(rawVal) || 0));
+  editingPercents[key] = val;
+  const expense  = loadExpenses().find(e => e.id === editingExpenseId);
+  const allKeys  = ['tu', ...expense.charges.map(c => String(c.id))];
+  const total    = editingTotal || expense.total;
+  const fixedSet = new Set([key, ...lockedKeys]);
+  const toUpdate = allKeys.filter(k => !fixedSet.has(k));
+  const fixedSum = allKeys.filter(k => fixedSet.has(k)).reduce((s, k) => s + (editingPercents[k] || 0), 0);
+  const remaining = Math.max(0, 100 - fixedSum);
+  if (toUpdate.length > 0) {
+    const base = Math.round(remaining / toUpdate.length * 10) / 10;
+    const rem  = Math.round((remaining - base * toUpdate.length) * 10) / 10;
+    toUpdate.forEach((k, i) => {
+      editingPercents[k] = i === 0 ? Math.round((base + rem) * 10) / 10 : base;
+      const inp = document.getElementById(`ep-${k}`);
+      if (inp) inp.value = editingPercents[k];
+    });
+  }
   allKeys.forEach(k => {
     const el = document.getElementById(`ep-amt-${k}`);
     if (el) el.textContent = `$${fmt(Math.round(total * (editingPercents[k] || 0) / 100 * 100) / 100)}`;
   });
-  const sumEl = document.getElementById('edit-pct-total');
+  const sumPct = allKeys.reduce((s, k) => s + (editingPercents[k] || 0), 0);
+  const sumOk  = Math.abs(sumPct - 100) < 0.6;
+  const sumEl  = document.getElementById('edit-pct-total');
   if (sumEl) {
     sumEl.style.color = sumOk ? '#34d399' : '#f87171';
     sumEl.textContent = `${fmt(Math.round(sumPct * 10) / 10)}% / 100% ${sumOk ? '✓' : '⚠ no coincide'}`;
@@ -1098,20 +1200,115 @@ function updateEditPercent(key, rawVal) {
 }
 
 function updateEditBaseAmt(key, rawVal) {
-  editingBaseAmts[key] = Math.max(0, parseFloat(rawVal) || 0);
   const expense  = loadExpenses().find(e => e.id === editingExpenseId);
-  const allKeys  = ['tu', ...expense.charges.map(c => String(c.id))];
   const total    = editingTotal || expense.total;
   const base     = Math.round(total / (1 + editingTipPct / 100) * 100) / 100;
-  const sumBase  = allKeys.reduce((s, k) => s + (editingBaseAmts[k] || 0), 0);
-  const baseOk   = Math.abs(sumBase - base) < 0.6;
-  const finalAmt = Math.round(editingBaseAmts[key] * (1 + editingTipPct / 100) * 100) / 100;
-  const finalEl  = document.getElementById(`eb-final-${key}`);
-  if (finalEl) finalEl.textContent = `= $${fmt(finalAmt)}`;
-  const sumEl = document.getElementById('edit-base-total');
+  const val      = Math.max(0, Math.min(parseFloat(rawVal) || 0, base));
+  editingBaseAmts[key] = val;
+  const allKeys  = ['tu', ...expense.charges.map(c => String(c.id))];
+  const fixedSet = new Set([key, ...lockedKeys]);
+  const toUpdate = allKeys.filter(k => !fixedSet.has(k));
+  const fixedSum = allKeys.filter(k => fixedSet.has(k)).reduce((s, k) => s + (editingBaseAmts[k] || 0), 0);
+  const remaining = Math.max(0, base - fixedSum);
+  if (toUpdate.length > 0) {
+    const bp = Math.round(remaining / toUpdate.length * 100) / 100;
+    const br = Math.round((remaining - bp * toUpdate.length) * 100) / 100;
+    toUpdate.forEach((k, i) => {
+      editingBaseAmts[k] = i === 0 ? Math.round((bp + br) * 100) / 100 : bp;
+      const inp = document.getElementById(`eb-${k}`);
+      if (inp) inp.value = editingBaseAmts[k];
+    });
+  }
+  allKeys.forEach(k => {
+    const finalAmt = Math.round(editingBaseAmts[k] * (1 + editingTipPct / 100) * 100) / 100;
+    const finalEl  = document.getElementById(`eb-final-${k}`);
+    if (finalEl) finalEl.textContent = `= $${fmt(finalAmt)}`;
+  });
+  const sumBase = allKeys.reduce((s, k) => s + (editingBaseAmts[k] || 0), 0);
+  const baseOk  = Math.abs(sumBase - base) < 0.6;
+  const sumEl   = document.getElementById('edit-base-total');
   if (sumEl) {
     sumEl.style.color = baseOk ? '#34d399' : '#f87171';
     sumEl.textContent = `Base: $${fmt(Math.round(sumBase * 100) / 100)} / $${fmt(base)} ${baseOk ? '✓' : '⚠ no coincide'}`;
+  }
+}
+
+function updateDiscountPct(rawVal) {
+  const pct = Math.max(0, Math.min(99, parseFloat(rawVal) || 0));
+  editingDiscountPct = pct;
+  const expense = loadExpenses().find(e => e.id === editingExpenseId);
+  const total   = editingTotal || expense.total;
+  // Derive $ amount from %: discAmt = total * pct / (100 - pct)
+  editingDiscountAmt = pct < 100 ? Math.round(total * pct / (100 - pct) * 100) / 100 : 0;
+  const amtInp = document.getElementById('discount-amt-inp');
+  if (amtInp) amtInp.value = editingDiscountAmt;
+  _redistributePreAmts(total);
+}
+
+function updateDiscountAmt(rawVal) {
+  const amt = Math.max(0, parseFloat(rawVal) || 0);
+  editingDiscountAmt = amt;
+  const expense = loadExpenses().find(e => e.id === editingExpenseId);
+  const total   = editingTotal || expense.total;
+  // Derive % from $: pct = amt / (total + amt) * 100
+  editingDiscountPct = Math.round(amt / (total + amt) * 100 * 10) / 10;
+  const pctInp = document.getElementById('discount-pct-inp');
+  if (pctInp) pctInp.value = editingDiscountPct;
+  _redistributePreAmts(total);
+}
+
+function _redistributePreAmts(total) {
+  const expense    = loadExpenses().find(e => e.id === editingExpenseId);
+  const preTotal   = Math.round((total + editingDiscountAmt) * 100) / 100;
+  const discFactor = preTotal > 0 ? total / preTotal : 1;
+  const allKeys    = ['tu', ...expense.charges.map(c => String(c.id))];
+  const n = allKeys.length;
+  const pp = Math.round(preTotal / n * 100) / 100;
+  const pr = Math.round((preTotal - pp * n) * 100) / 100;
+  allKeys.forEach((k, i) => {
+    editingPreAmts[k] = i === 0 ? Math.round((pp + pr) * 100) / 100 : pp;
+    const inp = document.getElementById(`ed-${k}`);
+    if (inp) inp.value = editingPreAmts[k];
+    const finalEl = document.getElementById(`ed-final-${k}`);
+    if (finalEl) finalEl.textContent = `= $${fmt(Math.round(editingPreAmts[k] * discFactor * 100) / 100)}`;
+  });
+  const infoEl = document.getElementById('edit-descuento-info');
+  if (infoEl) infoEl.textContent = `Sin dto. $${fmt(preTotal)}`;
+  const sumEl = document.getElementById('edit-pre-total');
+  if (sumEl) { sumEl.style.color = '#34d399'; sumEl.textContent = `Sin descuento: $${fmt(preTotal)} / $${fmt(preTotal)} ✓`; }
+}
+
+function updateEditPreAmt(key, rawVal) {
+  const expense    = loadExpenses().find(e => e.id === editingExpenseId);
+  const total      = editingTotal || expense.total;
+  const preTotal   = Math.round((total + editingDiscountAmt) * 100) / 100;
+  const discFactor = preTotal > 0 ? total / preTotal : 1;
+  const val        = Math.max(0, Math.min(parseFloat(rawVal) || 0, preTotal));
+  editingPreAmts[key] = val;
+  const allKeys    = ['tu', ...expense.charges.map(c => String(c.id))];
+  const fixedSet   = new Set([key, ...lockedKeys]);
+  const toUpdate   = allKeys.filter(k => !fixedSet.has(k));
+  const fixedSum   = allKeys.filter(k => fixedSet.has(k)).reduce((s, k) => s + (editingPreAmts[k] || 0), 0);
+  const remaining  = Math.max(0, preTotal - fixedSum);
+  if (toUpdate.length > 0) {
+    const pp = Math.round(remaining / toUpdate.length * 100) / 100;
+    const pr = Math.round((remaining - pp * toUpdate.length) * 100) / 100;
+    toUpdate.forEach((k, i) => {
+      editingPreAmts[k] = i === 0 ? Math.round((pp + pr) * 100) / 100 : pp;
+      const inp = document.getElementById(`ed-${k}`);
+      if (inp) inp.value = editingPreAmts[k];
+    });
+  }
+  allKeys.forEach(k => {
+    const finalEl = document.getElementById(`ed-final-${k}`);
+    if (finalEl) finalEl.textContent = `= $${fmt(Math.round(editingPreAmts[k] * discFactor * 100) / 100)}`;
+  });
+  const sumPre = allKeys.reduce((s, k) => s + (editingPreAmts[k] || 0), 0);
+  const preOk  = Math.abs(sumPre - preTotal) < 0.6;
+  const sumEl  = document.getElementById('edit-pre-total');
+  if (sumEl) {
+    sumEl.style.color = preOk ? '#34d399' : '#f87171';
+    sumEl.textContent = `Sin descuento: $${fmt(Math.round(sumPre * 100) / 100)} / $${fmt(preTotal)} ${preOk ? '✓' : '⚠ no coincide'}`;
   }
 }
 
@@ -1166,17 +1363,25 @@ function startEditExpense(id) {
   const br   = Math.round((base - bp * n) * 100) / 100;
   allKeys.forEach((k, i) => { editingBaseAmts[k] = i === 0 ? Math.round((bp + br) * 100) / 100 : bp; });
 
+  // Init pre-discount amounts (same as current amounts, 0% discount)
+  editingDiscountPct = 0;
+  editingDiscountAmt = 0;
+  allKeys.forEach(k => { editingPreAmts[k] = editingAmounts[k] || 0; });
+
   renderList();
 }
 
 function cancelEditExpense() {
   editingExpenseId = null;
-  editingAmounts   = {};
-  editingPercents  = {};
-  editingBaseAmts  = {};
-  lockedKeys       = new Set();
-  editingTotal     = 0;
-  editingTab       = 'monto';
+  editingAmounts     = {};
+  editingPercents    = {};
+  editingBaseAmts    = {};
+  editingPreAmts     = {};
+  lockedKeys         = new Set();
+  editingTotal       = 0;
+  editingDiscountPct = 0;
+  editingDiscountAmt = 0;
+  editingTab         = 'monto';
   renderList();
 }
 
@@ -1202,6 +1407,12 @@ function updateEditTotal(rawVal) {
   const bpp = Math.round(bp2 / n * 100) / 100;
   const brr = Math.round((bp2 - bpp * n) * 100) / 100;
   allKeys.forEach((k, i) => { editingBaseAmts[k] = i === 0 ? Math.round((bpp + brr) * 100) / 100 : bpp; });
+
+  // Reset pre-discount amounts
+  const preTotal2   = Math.round((val + editingDiscountAmt) * 100) / 100;
+  const pp2 = Math.round(preTotal2 / n * 100) / 100;
+  const pr2 = Math.round((preTotal2 - pp2 * n) * 100) / 100;
+  allKeys.forEach((k, i) => { editingPreAmts[k] = i === 0 ? Math.round((pp2 + pr2) * 100) / 100 : pp2; });
 
   renderList();
 }
@@ -1288,6 +1499,19 @@ function saveEditExpense(id) {
       c.amount = amt; chargeSum += amt;
     });
     expense.myShare = Math.round((newTotal - chargeSum) * 100) / 100;
+
+  } else if (editingTab === 'descuento') {
+    const preTotal   = newTotal + editingDiscountAmt;
+    const discFactor = preTotal > 0 ? newTotal / preTotal : 1;
+    const sumPre     = allKeys.reduce((s, k) => s + (editingPreAmts[k] || 0), 0);
+    if (Math.abs(sumPre - preTotal) > 1)
+      return toast('Los montos sin descuento no cuadran.', 'danger');
+    let chargeSum = 0;
+    expense.charges.forEach(c => {
+      const amt = Math.round(editingPreAmts[String(c.id)] * discFactor * 100) / 100;
+      c.amount = amt; chargeSum += amt;
+    });
+    expense.myShare = Math.round((newTotal - chargeSum) * 100) / 100;
   }
 
   expense.name  = newName;
@@ -1295,13 +1519,16 @@ function saveEditExpense(id) {
   expense.total = newTotal;
 
   saveExpenses(expenses);
-  editingExpenseId = null;
-  editingAmounts   = {};
-  editingPercents  = {};
-  editingBaseAmts  = {};
-  lockedKeys       = new Set();
-  editingTotal     = 0;
-  editingTab       = 'monto';
+  editingExpenseId   = null;
+  editingAmounts     = {};
+  editingPercents    = {};
+  editingBaseAmts    = {};
+  editingPreAmts     = {};
+  lockedKeys         = new Set();
+  editingTotal       = 0;
+  editingDiscountPct = 0;
+  editingDiscountAmt = 0;
+  editingTab         = 'monto';
   renderList();
   toast('Gasto actualizado.', 'success');
 }
@@ -1312,7 +1539,24 @@ function toggleCharge(expenseId, chargeId) {
   const charge   = expense.charges.find(c => c.id == chargeId);
   charge.paid    = !charge.paid;
   saveExpenses(expenses);
+
+  const justCompleted = expense.charges.length > 0 && expense.charges.every(c => c.paid);
+  if (justCompleted && filterPending) {
+    completingExpenses.add(expenseId);
+  }
   renderList();
+  if (justCompleted) {
+    const card = document.querySelector(`[data-expense-id="${expenseId}"]`);
+    if (card) {
+      card.classList.add('completing');
+      setTimeout(() => {
+        completingExpenses.delete(expenseId);
+        renderList();
+      }, 900);
+    } else {
+      completingExpenses.delete(expenseId);
+    }
+  }
 }
 
 function deleteExpense(id) {
